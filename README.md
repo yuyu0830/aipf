@@ -24,6 +24,7 @@
 - [결정 기록](docs/DECISIONS.md)
 - [구현 계획 P_0001](docs/IMPLEMENTATION_PLAN.md)
 - [운영 및 장애 복구](docs/OPERATIONS.md)
+- [새 세션 handoff](docs/NEXT_SESSION_HANDOFF.md)
 
 ## 목표 CLI
 

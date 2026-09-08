@@ -39,7 +39,7 @@ CLI 기반 다중 AI 에이전트 프로젝트 프레임워크의 완전한 틀�
 
 ## 다음 체크포인트
 
-필수 기능 보완을 위한 후속 개발 plan 수립
+새 세션에서 `docs/NEXT_SESSION_HANDOFF.md`를 읽고 `P_0002` 범위 승인
 
 ## Telegram 알림 설정
 
