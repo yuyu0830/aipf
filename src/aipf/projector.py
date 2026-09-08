@@ -2,114 +2,101 @@ from __future__ import annotations
 
 import os
 import tempfile
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from aipf.models import HandoffKind, Status
-from aipf.notifications import notification_events
-from aipf.store import HandoffStore
+from aipf.models import Kind, TaskStatus
+from aipf.store import ProjectStore
 
 
 def _line(value: Any) -> str:
     return str(value).replace("\n", " ").strip()
 
 
-def render_project(store: HandoffStore, goal: str, runtime: dict[str, Any] | None = None) -> str:
-    tasks = store.tasks()
-    counts = Counter(task.status for task in tasks)
-    completed = counts[Status.COMPLETED]
-    progress = round(100 * completed / len(tasks)) if tasks else 0
-    active = [task for task in tasks if task.status in {Status.READY, Status.RUNNING, Status.REVIEW}]
-    blocked = [task for task in tasks if task.status == Status.BLOCKED]
+def render_project(store: ProjectStore, runtime: dict[str, Any]) -> str:
+    tasks = list(store.objects(Kind.TASK))
+    completed = [task for task in tasks if task["status"] == TaskStatus.COMPLETED]
+    active = [task for task in tasks if task["status"] in {TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.AWAITING_REVIEW}]
+    blocked = [task for task in tasks if task["status"] == TaskStatus.BLOCKED]
+    progress = round(100 * len(completed) / len(tasks)) if tasks else 0
 
-    def task_rows(values: list) -> str:
-        if not values:
-            return "- 없음"
-        return "\n".join(f"- `{item.id}` [{item.status.value}] {_line(item.goal)}" for item in values)
+    def rows(items: list[dict[str, Any]]) -> str:
+        return "\n".join(f"- `{item['id']}` [{item['status']}] {_line(item['goal'])}" for item in items) or "- 없음"
 
-    decisions = []
-    for path in list(store.iter_handoffs(HandoffKind.DECISION))[-3:]:
-        item = store.read(path)
-        decisions.append(f"- `{item['id']}` {_line(item['selection'])}: {_line(item['rationale'])}")
-    reviews = []
-    artifacts = []
-    for task in tasks:
-        review = task.raw.get("review", {})
-        if review.get("verdict"):
-            reviews.append(f"- `{task.id}` {review['verdict']}: {_line(review.get('reason', ''))}".rstrip())
-        for artifact in task.raw.get("result", {}).get("artifacts", []):
-            artifacts.append(f"- `{task.id}`: `{_line(artifact)}`")
-
-    state = str((runtime or {}).get("state", "unknown"))
-    telegram_events = notification_events(store.root / "PROJECT.md")
-    telegram_setting = ", ".join(sorted(telegram_events)) if telegram_events else "never"
-    if state == "awaiting_task_confirmation":
-        checkpoint = "완료 task 확인 후 `aipf approve continue --target <task-id>` 실행"
-    elif state == "awaiting_plan_confirmation":
-        checkpoint = "완료 plan 사용자 확인"
-    elif blocked:
-        checkpoint = "차단 원인 확인 후 `aipf answer`로 결정 기록"
-    elif active:
-        checkpoint = "활성 task 실행 또는 검토 완료"
+    audits = list(store.objects(Kind.AUDIT))
+    audit_rows = "\n".join(
+        f"- `{item['id']}` {_line(item['event'])}: {_line(item['summary'])}" for item in audits[-5:]
+    ) or "- 없음"
+    state = runtime["state"]
+    if state == "awaiting_plan_confirmation":
+        next_action = f"Plan `{runtime['active_plan_id']}` 검토 후 승인 또는 수정"
+    elif state == "awaiting_task_confirmation":
+        next_action = f"Task `{runtime['active_task_id']}` 결과 검토 후 approve, revise, retry, cancel 중 선택"
+    elif state == "ready":
+        next_action = "`aipf run`으로 다음 task 시작"
+    elif state == "completed":
+        next_action = "프로젝트 완료 결과 확인"
+    elif state == "blocked":
+        next_action = "차단 원인 확인 후 사용자 결정"
     else:
-        checkpoint = "새 plan 생성 또는 프로젝트 완료 승인"
+        next_action = "사용자와 plan 합의"
 
     return f"""# PROJECT
 
 ## 목표
 
-{goal}
+{_line(runtime['goal'])}
 
 ## 현재 상태
 
 - 실행 상태: {state}
 - 진행률: {progress}%
 - 전체 task: {len(tasks)}
-- 완료: {completed}
-- 차단: {len(blocked)}
+- 완료 task: {len(completed)}
 
 ## 활성 task
 
-{task_rows(active)}
+{rows(active)}
 
 ## 차단 사항
 
-{task_rows(blocked)}
+{rows(blocked)}
 
-## 최근 결정
+## 최근 기록
 
-{chr(10).join(decisions) if decisions else "- 없음"}
+{audit_rows}
 
-## 검토 결과
+## 다음 행동
 
-{chr(10).join(reviews[-5:]) if reviews else "- 없음"}
-
-## 산출물
-
-{chr(10).join(artifacts) if artifacts else "- 없음"}
-
-## 다음 체크포인트
-
-{checkpoint}
+{next_action}
 
 ## Telegram 알림 설정
 
-- 전송 조건: {telegram_setting}
+- 전송 조건: {notification_setting(store.root / 'PROJECT.md')}
 """
 
 
-def write_project(path: Path, content: str) -> None:
-    descriptor, temp_name = tempfile.mkstemp(prefix=".PROJECT.md.", dir=path.parent)
+def notification_setting(path: Path) -> str:
+    if path.exists():
+        import re
+        match = re.search(r"(?m)^- 전송 조건:\s*(.+)$", path.read_text(encoding="utf-8"))
+        if match:
+            return match.group(1).strip()
+    return "task_completed, plan_completed, blocked"
+
+
+def write_project(store: ProjectStore, runtime: dict[str, Any]) -> None:
+    content = render_project(store, runtime)
+    descriptor, temporary = tempfile.mkstemp(prefix=".PROJECT.md.", dir=store.root)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temp_name, path)
+        os.replace(temporary, store.root / "PROJECT.md")
     except BaseException:
         try:
-            os.unlink(temp_name)
+            os.unlink(temporary)
         except FileNotFoundError:
             pass
         raise

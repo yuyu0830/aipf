@@ -2,13 +2,13 @@
 
 ## 목표
 
-CLI 기반 다중 AI 에이전트 프로젝트 프레임워크의 완전한 틀을 제작한다.
+파일 구조와 관리 객체를 중심으로, 사용자가 진행 방식을 이해하고 통제할 수 있는 AI 프로젝트 프레임워크를 제작한다.
 
 ## 현재 상태
 
-- 현재 단계: `0.0.0.dev0` 개발 단계
-- 진행률: 100% (`P_0001` task 7/7)
-- 완료: 요구사항, 아키텍처, 실행, 복구, 검토, 알림, 보안, end-to-end 검증
+- 현재 단계: `0.1.0` 최소 프로젝트 틀 완성
+- 진행률: 100%
+- 완료: 파일 구조, Plan, Task, Audit, 최소 실행, 사용자 검토, Telegram 알림
 - 진행 중: 없음
 
 ## 활성 task
@@ -21,25 +21,29 @@ CLI 기반 다중 AI 에이전트 프로젝트 프레임워크의 완전한 틀�
 
 ## 최근 결정
 
-- 상세 합의는 `docs/DECISIONS.md` 참조
-- 구현 계획은 `docs/IMPLEMENTATION_PLAN.md` 참조
-- 2026-09-08: 사용자가 `P_0001` 구현 체크포인트를 승인함
-- 정식 버전과 Git tag는 필수 기능 완료 후 생성
+- 2026-09-08: `PROJECT.md`, Plan, Task, Audit 중심 구조를 확정함
+- 2026-09-08: `docs/`, `ref/`, `src/`의 목적과 AI 접근 권한을 확정함
+- 2026-09-08: Knowledge와 영구 Session 객체를 사용하지 않기로 함
+- 2026-09-08: 자동 계획과 자동 심사 없이 사용자 승인 기반 순차 실행을 확정함
+- 2026-09-08: 최소 프로젝트 틀의 버전을 `0.1.0`으로 확정함
 
 ## 검토 결과
 
-- 단위·통합 테스트 54개 통과
-- CLI 초기화·검증·상태 조회 스모크 테스트 통과
-- 개발 wheel 빌드 및 포함 파일 검증 통과
+- 핵심 lifecycle 테스트 6개 통과
+- `approve`, `revise`, `retry`, `cancel` 사용자 검토 경로 통과
+- Telegram 성공, 미설정, 실패 격리 테스트 통과
+- Python 문법 검사와 CLI help smoke test 통과
 
 ## 산출물
 
-- `docs/` 설계 문서
-- `src/aipf/` 실행 골격
+- `AGENTS.md`, `SKILLS.md`, `MEMORY_MAP.md`
+- `docs/PROJECT_DIRECTION.md`
+- Plan, Task, Audit 기반 `src/aipf/` 최소 실행 틀
+- 새 프로젝트용 안내 문서 template
 
 ## 다음 체크포인트
 
-새 세션에서 `docs/NEXT_SESSION_HANDOFF.md`를 읽고 `P_0002` 범위 승인
+Git commit과 `origin/main` push 후 실제 프로젝트에서 시행착오 진행
 
 ## Telegram 알림 설정
 

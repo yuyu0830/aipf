@@ -4,14 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aipf"
-version = "0.0.0.dev0"
-description = "File-based multi-agent project orchestration framework"
+version = "0.1.0"
+description = "File-based framework for user-controlled AI projects"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
   "PyYAML>=6.0.2,<7",
-  "jsonschema>=4.23,<5",
 ]
 
 [project.scripts]

@@ -1,84 +1,112 @@
 from __future__ import annotations
 
-import json
-from functools import lru_cache
-from importlib.resources import files
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
-from jsonschema import Draft202012Validator, FormatChecker
-
-from aipf.store import HandoffStore
+from aipf.models import Kind, ProjectState, TaskStatus
 
 
-SCHEMA_NAMES = {"handoff", "runtime", "config"}
+def _require(document: dict[str, Any], fields: tuple[str, ...], label: str) -> None:
+    missing = [field for field in fields if field not in document]
+    if missing:
+        raise ValueError(f"{label} missing fields: {', '.join(missing)}")
 
 
-@lru_cache(maxsize=len(SCHEMA_NAMES))
-def load_schema(name: str) -> dict[str, Any]:
-    if name not in SCHEMA_NAMES:
-        raise ValueError(f"unknown schema: {name}")
-    resource = files("aipf.schemas").joinpath(f"{name}.schema.json")
-    schema = json.loads(resource.read_text(encoding="utf-8"))
-    Draft202012Validator.check_schema(schema)
-    return schema
+def _strings(value: Any, field: str, *, nonempty: bool = False) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) and (item or not nonempty) for item in value):
+        raise ValueError(f"{field} must be a list of strings")
+    return value
 
 
-def _schema_errors(document: dict[str, Any], schema_name: str) -> list[str]:
-    validator = Draft202012Validator(load_schema(schema_name), format_checker=FormatChecker())
-    errors: list[str] = []
-    for error in sorted(validator.iter_errors(document), key=lambda item: list(item.absolute_path)):
-        location = ".".join(str(part) for part in error.absolute_path) or "$"
-        errors.append(f"{location}: {error.message}")
-    return errors
+def _safe_paths(values: Any, field: str, roots: set[str]) -> None:
+    for value in _strings(values, field):
+        path = PurePosixPath(value)
+        if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] not in roots:
+            raise ValueError(f"unsafe {field} path: {value}")
 
 
-def validate_document(document: dict[str, Any]) -> list[str]:
-    return _schema_errors(document, "handoff")
+def validate_plan(document: dict[str, Any]) -> None:
+    _require(document, ("id", "kind", "goal", "scope", "acceptance_criteria", "task_ids", "status", "revision"), "plan")
+    if document["kind"] != Kind.PLAN.value or not str(document["id"]).startswith("P_"):
+        raise ValueError("invalid plan identity")
+    if not isinstance(document["goal"], str) or not document["goal"].strip():
+        raise ValueError("plan goal must not be empty")
+    if not isinstance(document["scope"], dict):
+        raise ValueError("plan scope must be a mapping")
+    _strings(document["scope"].get("includes"), "scope.includes")
+    _strings(document["scope"].get("excludes"), "scope.excludes")
+    _strings(document["acceptance_criteria"], "acceptance_criteria", nonempty=True)
+    _strings(document["task_ids"], "task_ids")
+    if document["status"] not in {"proposed", "approved", "completed", "cancelled"}:
+        raise ValueError("invalid plan status")
 
 
-def validate_runtime(document: dict[str, Any]) -> list[str]:
-    return _schema_errors(document, "runtime")
+def validate_task(document: dict[str, Any]) -> None:
+    _require(document, ("id", "kind", "plan_id", "goal", "references", "outputs", "constraints", "acceptance_criteria", "verification", "status", "result", "revision"), "task")
+    if document["kind"] != Kind.TASK.value or not str(document["id"]).startswith("T_"):
+        raise ValueError("invalid task identity")
+    if not isinstance(document["goal"], str) or not document["goal"].strip():
+        raise ValueError("task goal must not be empty")
+    _safe_paths(document["references"], "references", {"docs", "ref", "src"})
+    _safe_paths(document["outputs"], "outputs", {"src"})
+    _strings(document["constraints"], "constraints")
+    _strings(document["acceptance_criteria"], "acceptance_criteria", nonempty=True)
+    verification = document["verification"]
+    if not isinstance(verification, dict):
+        raise ValueError("verification must be a mapping")
+    _strings(verification.get("commands"), "verification.commands")
+    _strings(verification.get("evidence"), "verification.evidence")
+    if document["status"] not in set(TaskStatus):
+        raise ValueError("invalid task status")
+    result = document["result"]
+    if not isinstance(result, dict):
+        raise ValueError("result must be a mapping")
+    _strings(result.get("evidence"), "result.evidence")
+    _strings(result.get("outputs"), "result.outputs")
 
 
-def validate_config(document: dict[str, Any]) -> list[str]:
-    errors = _schema_errors(document, "config")
-    weights = document.get("routing", {}).get("weights", {})
-    if isinstance(weights, dict) and all(isinstance(value, (int, float)) for value in weights.values()):
-        if abs(sum(weights.values()) - 1.0) > 1e-9:
-            errors.append("routing.weights: values must sum to 1.0")
-        cost = weights.get("cost")
-        if isinstance(cost, (int, float)) and any(cost < value for key, value in weights.items() if key != "cost"):
-            errors.append("routing.weights.cost: must be at least as large as every other weight")
-    execution = document.get("execution", {})
-    if isinstance(execution, dict):
-        interval = execution.get("heartbeat_interval_seconds")
-        timeout = execution.get("heartbeat_timeout_seconds")
-        if isinstance(interval, int) and isinstance(timeout, int) and timeout <= interval:
-            errors.append("execution.heartbeat_timeout_seconds: must exceed heartbeat interval")
-    return errors
+def validate_audit(document: dict[str, Any]) -> None:
+    _require(document, ("id", "kind", "timestamp", "event", "target", "summary", "decision"), "audit")
+    if document["kind"] != Kind.AUDIT.value or not str(document["id"]).startswith("A_"):
+        raise ValueError("invalid audit identity")
+    if not all(isinstance(document[field], str) and document[field] for field in ("timestamp", "event", "target", "summary")):
+        raise ValueError("audit text fields must not be empty")
+    if document["decision"] is not None and document["decision"] not in {"approve", "revise", "retry", "cancel"}:
+        raise ValueError("invalid audit decision")
 
 
-def require_valid(document: dict[str, Any], schema_name: str) -> None:
-    validators = {
-        "handoff": validate_document,
-        "runtime": validate_runtime,
-        "config": validate_config,
-    }
-    try:
-        errors = validators[schema_name](document)
-    except KeyError as exc:
-        raise ValueError(f"unknown schema: {schema_name}") from exc
-    if errors:
-        raise ValueError("; ".join(errors))
+def validate_runtime(document: dict[str, Any]) -> None:
+    _require(document, ("schema_version", "goal", "state", "active_plan_id", "active_task_id", "updated_at"), "runtime")
+    if document["state"] not in set(ProjectState):
+        raise ValueError("invalid project state")
 
 
-def validate_store(store: HandoffStore) -> list[tuple[Path, str]]:
-    errors: list[tuple[Path, str]] = []
-    for path in store.iter_handoffs():
+def validate_config(document: dict[str, Any]) -> None:
+    _require(document, ("schema_version", "notifications"), "config")
+    notifications = document["notifications"]
+    if not isinstance(notifications, dict):
+        raise ValueError("notifications must be a mapping")
+    events = _strings(notifications.get("events"), "notifications.events")
+    supported = {"task_completed", "plan_completed", "blocked", "never"}
+    if not set(events) <= supported or ("never" in events and len(events) != 1):
+        raise ValueError("invalid notification events")
+    timeout = notifications.get("timeout_seconds")
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValueError("notification timeout must be a positive integer")
+
+
+def validate_store(store) -> list[tuple[str, str]]:
+    validators = {Kind.PLAN: validate_plan, Kind.TASK: validate_task, Kind.AUDIT: validate_audit}
+    errors: list[tuple[str, str]] = []
+    for kind, validator in validators.items():
+        for path in store.paths(kind):
+            try:
+                validator(store.read(path))
+            except Exception as exc:
+                errors.append((str(path), str(exc)))
+    for path, validator in ((store.runtime_path, validate_runtime), (store.config_path, validate_config)):
         try:
-            document = store.read(path)
-            errors.extend((path, error) for error in validate_document(document))
+            validator(store.read(path))
         except Exception as exc:
-            errors.append((path, str(exc)))
+            errors.append((str(path), str(exc)))
     return errors
