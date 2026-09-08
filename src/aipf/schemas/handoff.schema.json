@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aipf.local/schemas/handoff.schema.json",
+  "title": "AIPF handoff",
+  "type": "object",
+  "required": [
+    "schema_version", "id", "uid", "kind", "agent_id", "project_id",
+    "created_at", "updated_at", "revision", "status", "parent_ids", "tags"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {"pattern": "^[PTDAK]_[0-9]{4,}$"},
+    "uid": {"type": "string", "format": "uuid"},
+    "kind": {"enum": ["plan", "task", "decision", "audit", "knowledge"]},
+    "agent_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"},
+    "project_id": {"type": "string", "format": "uuid"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "revision": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["pending", "ready", "running", "blocked", "review", "completed", "failed", "cancelled"]},
+    "parent_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "plan"}}, "required": ["kind"]},
+      "then": {
+        "required": ["goal", "scope", "task_ids", "acceptance_criteria", "constraints", "checkpoint"],
+        "properties": {
+          "id": {"pattern": "^P_[0-9]{4,}$"},
+          "goal": {"type": "string", "minLength": 1},
+          "scope": {"$ref": "#/$defs/scope"},
+          "task_ids": {"type": "array", "items": {"pattern": "^T_[0-9]{4,}$"}, "uniqueItems": true},
+          "acceptance_criteria": {"$ref": "#/$defs/nonEmptyStrings"},
+          "constraints": {"$ref": "#/$defs/strings"},
+          "checkpoint": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "task"}}, "required": ["kind"]},
+      "then": {
+        "required": ["goal", "scope", "inputs", "outputs", "constraints", "acceptance_criteria", "verification", "dependencies", "read_set", "write_set", "resources", "risk", "budget", "attempt", "max_retries", "progress", "result", "blocker"],
+        "properties": {
+          "id": {"pattern": "^T_[0-9]{4,}$"},
+          "goal": {"type": "string", "minLength": 1},
+          "scope": {"$ref": "#/$defs/scope"},
+          "inputs": {"$ref": "#/$defs/strings"},
+          "outputs": {"$ref": "#/$defs/strings"},
+          "constraints": {"$ref": "#/$defs/strings"},
+          "acceptance_criteria": {"$ref": "#/$defs/nonEmptyStrings"},
+          "verification": {
+            "type": "object", "required": ["commands", "evidence"],
+            "properties": {"commands": {"$ref": "#/$defs/strings"}, "evidence": {"$ref": "#/$defs/strings"}}
+          },
+          "dependencies": {"type": "array", "items": {"pattern": "^T_[0-9]{4,}$"}, "uniqueItems": true},
+          "read_set": {"$ref": "#/$defs/strings"},
+          "write_set": {"$ref": "#/$defs/strings"},
+          "resources": {"$ref": "#/$defs/strings"},
+          "risk": {"enum": ["low", "medium", "high", "critical"]},
+          "budget": {
+            "type": "object", "required": ["timeout_seconds", "max_input_tokens", "max_output_tokens", "max_cost_usd"],
+            "properties": {
+              "timeout_seconds": {"type": "integer", "minimum": 1},
+              "max_input_tokens": {"type": "integer", "minimum": 1},
+              "max_output_tokens": {"type": "integer", "minimum": 1},
+              "max_cost_usd": {"type": "number", "minimum": 0}
+            }
+          },
+          "attempt": {"type": "integer", "minimum": 0},
+          "max_retries": {"type": "integer", "minimum": 0},
+          "progress": {
+            "type": "object", "required": ["summary", "completed", "remaining", "next_action"],
+            "properties": {
+              "summary": {"type": "string"}, "completed": {"$ref": "#/$defs/strings"},
+              "remaining": {"$ref": "#/$defs/strings"}, "next_action": {"type": "string"}
+            }
+          },
+          "result": {
+            "type": "object", "required": ["outcome", "artifacts", "evidence"],
+            "properties": {
+              "outcome": {"type": ["string", "null"]},
+              "artifacts": {"$ref": "#/$defs/strings"}, "evidence": {"$ref": "#/$defs/strings"}
+            }
+          },
+          "blocker": {"type": ["string", "null"]}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "decision"}}, "required": ["kind"]},
+      "then": {
+        "required": ["question", "options", "selection", "rationale", "impact", "decided_by", "decided_at"],
+        "properties": {
+          "id": {"pattern": "^D_[0-9]{4,}$"}, "question": {"type": "string", "minLength": 1},
+          "options": {"$ref": "#/$defs/strings"}, "selection": {}, "rationale": {"type": "string", "minLength": 1},
+          "impact": {"type": "string", "minLength": 1}, "decided_by": {"type": "string", "minLength": 1},
+          "decided_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "audit"}}, "required": ["kind"]},
+      "then": {
+        "required": ["event", "actor", "target_id", "evidence", "masked"],
+        "properties": {
+          "id": {"pattern": "^A_[0-9]{4,}$"}, "event": {"type": "string", "minLength": 1},
+          "actor": {"type": "string", "minLength": 1}, "target_id": {"type": "string", "minLength": 1},
+          "evidence": {"$ref": "#/$defs/strings"}, "masked": {"type": "boolean"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "knowledge"}}, "required": ["kind"]},
+      "then": {
+        "required": ["claim", "sources", "confidence", "scope", "valid_until", "last_verified_at"],
+        "properties": {
+          "id": {"pattern": "^K_[0-9]{4,}$"}, "claim": {"type": "string", "minLength": 1},
+          "sources": {"$ref": "#/$defs/strings"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "scope": {"type": "string", "minLength": 1}, "valid_until": {"type": ["string", "null"], "format": "date-time"},
+          "last_verified_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "strings": {"type": "array", "items": {"type": "string"}},
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "scope": {
+      "type": "object", "required": ["includes", "excludes"],
+      "properties": {"includes": {"$ref": "#/$defs/strings"}, "excludes": {"$ref": "#/$defs/strings"}}
+    }
+  }
+}

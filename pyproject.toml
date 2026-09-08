@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aipf"
+version = "0.0.0.dev0"
+description = "File-based multi-agent project orchestration framework"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "PyYAML>=6.0.2,<7",
+  "jsonschema>=4.23,<5",
+]
+
+[project.scripts]
+aipf = "aipf.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aipf"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
