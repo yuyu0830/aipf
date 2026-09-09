@@ -30,7 +30,7 @@ def refresh(store: ProjectStore, runtime: dict) -> None:
 
 def write_guidance_files(root: Path) -> None:
     templates = files("aipf.templates")
-    for name in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md"):
+    for name in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md"):
         target = root / name
         if not target.exists():
             target.write_text(templates.joinpath(name).read_text(encoding="utf-8"), encoding="utf-8")

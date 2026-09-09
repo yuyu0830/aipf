@@ -54,7 +54,7 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Test project"]), 0)
             root = Path(directory)
-            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "PROJECT.md", "docs", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits"):
+            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "docs", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits"):
                 self.assertTrue((root / path).exists(), path)
             self.assertEqual(main(["--directory", directory, "validate"]), 0)
 

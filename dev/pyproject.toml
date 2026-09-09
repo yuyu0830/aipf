@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "aipf"
 version = "0.1.0"
 description = "File-based framework for user-controlled AI projects"
-readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
