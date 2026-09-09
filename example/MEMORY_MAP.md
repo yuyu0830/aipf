@@ -6,7 +6,11 @@
 | `SKILLS.md` | Reusable workflows | Read/write | Read; explicit-request write |
 | `PROJECT.md` | Korean status and next action | Read/review | Read/write |
 | `MEMORY_MAP.md` | File and access map | Read/write | Read/write |
-| `docs/` | User project documents | Read/write | Read-only |
+| `inputs/PROJECT_SPEC.md` | Single project-wide specification and roadmap | Read/write | Read; write only on explicit user request |
+| `inputs/docs/` | User-provided documents | Read/write | Read-only |
+| `inputs/codes/` | User-provided source code | Read/write | Read-only |
+| `inputs/data/` | User-provided structured data | Read/write | Read-only |
+| `inputs/media/` | User-provided images, audio, and video | Read/write | Read-only |
 | `ref/` | External originals | Read | Manage; originals immutable |
 | `src/` | Project outputs | Read/review | Read/write |
 | `.aipf/plans/` | Plan objects | Review | Read/write |
@@ -15,4 +19,4 @@
 | `.aipf/runtime.yaml` | Current execution state | Read | Read/write |
 | `.aipf/config.yaml` | Notification settings | Read/configure | Policy-limited write |
 
-Load context in this order: `PROJECT.md`, this map, active Plan, active Task, then Task references.
+Load context in this order: `PROJECT.md`, this map, `inputs/PROJECT_SPEC.md`, active Plan, active Task, then Task references.

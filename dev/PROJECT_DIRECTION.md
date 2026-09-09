@@ -19,6 +19,7 @@ agree -> save plan and tasks -> approve plan -> execute one task
 - Human-readable Plan, Task, and Audit objects.
 - A file layout that reveals how the project operates.
 - Direct references to user documents and external source originals.
+- One natural-language project specification with a project-wide roadmap.
 - Minimal AI task execution with user-controlled acceptance.
 - Recovery from the current persisted state.
 - Optional Telegram notifications.
@@ -40,7 +41,12 @@ project-root/
 |-- SKILLS.md
 |-- PROJECT.md
 |-- MEMORY_MAP.md
-|-- docs/
+|-- inputs/
+|   |-- PROJECT_SPEC.md
+|   |-- docs/
+|   |-- codes/
+|   |-- data/
+|   `-- media/
 |-- ref/
 |-- src/
 `-- .aipf/

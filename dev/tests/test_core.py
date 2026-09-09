@@ -23,7 +23,7 @@ def plan_spec() -> dict:
         },
         "tasks": [{
             "goal": "Write the report",
-            "references": ["docs/requirements.md"],
+            "references": ["inputs/docs/requirements.md"],
             "outputs": ["src/report.md"],
             "constraints": ["Use the requirements"],
             "acceptance_criteria": ["src/report.md exists"],
@@ -32,10 +32,18 @@ def plan_spec() -> dict:
     }
 
 
+def write_project_spec(root: Path) -> None:
+    (root / "inputs" / "PROJECT_SPEC.md").write_text(
+        "# Project specification\n\n## 7. 진행 계획\n\n1. Create the report\n",
+        encoding="utf-8",
+    )
+
+
 def prepare_submitted_task(directory: str) -> ProjectStore:
     root = Path(directory)
     main(["--directory", directory, "init", "--goal", "Review project"])
-    (root / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    write_project_spec(root)
+    (root / "inputs" / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
     spec_path = root / "plan.yaml"
     spec_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
     main(["--directory", directory, "plan", "apply", "--file", str(spec_path)])
@@ -54,15 +62,28 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Test project"]), 0)
             root = Path(directory)
-            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "docs", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits"):
+            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "inputs/PROJECT_SPEC.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits"):
                 self.assertTrue((root / path).exists(), path)
             self.assertEqual(main(["--directory", directory, "validate"]), 0)
+
+    def test_plan_apply_requires_project_spec_roadmap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Guard test"]), 0)
+            plan_path = root / "plan.yaml"
+            plan_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
+            (root / "inputs" / "PROJECT_SPEC.md").unlink()
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
+            write_project_spec(root)
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 0)
 
     def test_plan_task_review_lifecycle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Draft"]), 0)
-            (root / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+            write_project_spec(root)
+            (root / "inputs" / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
             spec_path = root / "plan.yaml"
             spec_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(spec_path)]), 0)
@@ -124,7 +145,8 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Order test"]), 0)
-            (root / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+            write_project_spec(root)
+            (root / "inputs" / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
 
             first = plan_spec()
             first_path = root / "first.yaml"

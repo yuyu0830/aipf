@@ -27,7 +27,7 @@ class ProjectStore:
     def initialize(self) -> None:
         for name in (*self.DIRECTORIES.values(),):
             (self.control / name).mkdir(parents=True, exist_ok=True)
-        for name in ("docs", "ref", "src"):
+        for name in ("inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src"):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 
     def directory(self, kind: Kind) -> Path:

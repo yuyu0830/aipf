@@ -1,9 +1,10 @@
 # Agent Instructions
 
-Read `PROJECT.md`, `MEMORY_MAP.md`, the active Plan, and the active Task before work.
+Read `PROJECT.md`, `MEMORY_MAP.md`, `inputs/PROJECT_SPEC.md`, the active Plan, and the active Task before work.
 
 - Follow the approved Plan and perform one Task at a time.
-- Treat `docs/` as user-owned and read-only.
+- Treat `inputs/` as user-owned and read-only.
+- Modify `inputs/PROJECT_SPEC.md` only when the user explicitly requests it. Never create another project specification.
 - Keep originals under `ref/` immutable.
 - Store implementation outputs under `src/`.
 - Read only files listed in the active Task's `references` unless more context is required.

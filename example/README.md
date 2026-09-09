@@ -2,7 +2,7 @@
 
 AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하고, 작업을 하나씩 수행하며, 사용자 검토를 거쳐 다음 작업으로 진행하는 최소 프레임워크다.
 
-버전: `0.1.0`
+버전: `0.2.0`
 
 ## 핵심 원칙
 
@@ -42,7 +42,12 @@ project-root/
 ├── SKILLS.md
 ├── PROJECT.md
 ├── MEMORY_MAP.md
-├── docs/
+├── inputs/
+│   ├── PROJECT_SPEC.md
+│   ├── docs/
+│   ├── codes/
+│   ├── data/
+│   └── media/
 ├── ref/
 ├── src/
 └── .aipf/
@@ -59,12 +64,16 @@ project-root/
 - `AGENTS.md`: AI가 항상 따라야 하는 행동 규칙
 - `SKILLS.md`: 프로젝트에서 반복 사용하는 작업 절차
 - `MEMORY_MAP.md`: 파일 위치, 목적, 사용자·AI 접근 권한
-- `docs/`: 사용자가 작성하고 AI가 읽는 프로젝트 자료
+- `inputs/PROJECT_SPEC.md`: 프로젝트 전체 목표, 명세, 자연어 Roadmap을 담는 단일 기준 문서
+- `inputs/docs/`: 사용자가 제공한 문서
+- `inputs/codes/`: 사용자가 제공한 소스 코드
+- `inputs/data/`: 사용자가 제공한 정형 데이터
+- `inputs/media/`: 사용자가 제공한 이미지, 오디오, 비디오
 - `ref/`: AI가 관리하는 외부 원본과 출처 metadata
 - `src/`: AI가 만드는 프로젝트 구현물과 생성물
 - `.aipf/`: Plan, Task, Audit와 현재 실행 상태
 
-`docs/`는 사용자 전용 수정 영역이다. AI는 읽기만 한다. `ref/`의 외부 원본은 덮어쓰지 않고 새 버전을 별도 파일로 저장한다. AI가 만든 결과는 `src/`에 둔다.
+`inputs/`는 사용자 전용 수정 영역이다. AI는 기본적으로 읽기만 한다. AI는 사용자가 명시적으로 요청할 때만 `inputs/PROJECT_SPEC.md`를 수정할 수 있다. 프로젝트 명세서는 하나만 둔다. `ref/`의 외부 원본은 덮어쓰지 않고 새 버전을 별도 파일로 저장한다. AI가 만든 결과는 `src/`에 둔다.
 
 ## 관리 객체
 
@@ -82,7 +91,7 @@ Task는 Plan의 `task_ids` 순서대로 실행된다. 활성 Plan에 속하지 �
 
 `.aipf/audits/A_000.yaml`에 사용자 검토 결과를 저장한다. 현재 선택지는 `approve`, `revise`, `retry`, `cancel`이다.
 
-별도 Knowledge나 영구 Session 객체는 사용하지 않는다. Task가 `docs/`, `ref/`, `src/`의 원본 파일을 직접 참조한다. 실행 중 필요한 최소 정보만 `.aipf/runtime.yaml`에 저장한다.
+별도 Knowledge나 영구 Session 객체는 사용하지 않는다. Task가 `inputs/`, `ref/`, `src/`의 원본 파일을 직접 참조한다. 실행 중 필요한 최소 정보만 `.aipf/runtime.yaml`에 저장한다.
 
 ## 설치
 
@@ -105,9 +114,11 @@ python3.12 -m venv .venv
 aipf --directory /path/to/project init --goal "프로젝트 목표"
 ```
 
-초기 상태는 `awaiting_plan`이다. 생성된 `PROJECT.md`, `AGENTS.md`, `SKILLS.md`, `MEMORY_MAP.md`를 먼저 확인한다.
+초기 상태는 `awaiting_plan`이다. 생성된 `PROJECT.md`, `AGENTS.md`, `SKILLS.md`, `MEMORY_MAP.md`를 먼저 확인하고 `inputs/PROJECT_SPEC.md`를 작성한다.
 
 ## 2. 사용자와 Plan 합의
+
+AI는 `inputs/PROJECT_SPEC.md`의 자연어 Roadmap에서 다음 단계를 선택해 Plan을 제안한다. Roadmap 항목 하나가 Plan 하나의 기본 후보다. 사용자가 승인하면 항목을 합치거나 나눌 수 있다. 명세서가 없거나 `진행 계획`에 단계 목록이 없으면 `plan apply`가 실행되지 않는다.
 
 사용자는 AI와 다음 내용을 대화로 합의한다.
 
@@ -136,7 +147,7 @@ plan:
 tasks:
   - goal: Write the report
     references:
-      - docs/requirements.md
+      - inputs/docs/requirements.md
       - ref/source-paper.pdf
     outputs:
       - src/report.md
@@ -199,7 +210,7 @@ CLI는 활성 Plan에서 아직 완료되지 않은 첫 Task를 선택한다. �
 
 ## 5. AI 작업과 결과 제출
 
-AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `docs/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다.
+AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다.
 
 작업 후 검증 명령을 실행하고 결과를 제출한다.
 
@@ -321,7 +332,7 @@ setenv AIPF_TELEGRAM_CHAT_ID "..."
 
 ## 현재 범위
 
-버전 `0.1.0`은 다음 기능을 의도적으로 포함하지 않는다.
+버전 `0.2.0`은 다음 기능을 의도적으로 포함하지 않는다.
 
 - 목표의 자동 Task 분해
 - AI 모델 자동 선택과 직접 API 호출

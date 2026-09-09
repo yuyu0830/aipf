@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -25,6 +27,30 @@ def _safe_paths(values: Any, field: str, roots: set[str]) -> None:
             raise ValueError(f"unsafe {field} path: {value}")
 
 
+def validate_project_spec(path: Path) -> None:
+    if not path.is_file():
+        raise ValueError("project specification not found: inputs/PROJECT_SPEC.md")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    heading = re.compile(r"^##\s+(?:\d+\.\s*)?진행 계획\s*$")
+    start = next((index + 1 for index, line in enumerate(lines) if heading.match(line.strip())), None)
+    if start is None:
+        raise ValueError("project specification requires a 진행 계획 section")
+    section: list[str] = []
+    for line in lines[start:]:
+        if re.match(r"^#{1,2}\s+", line.strip()):
+            break
+        section.append(line)
+    item = re.compile(r"^\s*(?:\d+[.)]|[-*+])\s+(.+?)\s*$")
+    for line in section:
+        match = item.match(line)
+        if not match:
+            continue
+        content = re.sub(r"\[[^]]*]", "", match.group(1)).strip()
+        if content:
+            return
+    raise ValueError("project specification roadmap requires at least one stage")
+
+
 def validate_plan(document: dict[str, Any]) -> None:
     _require(document, ("id", "kind", "goal", "scope", "acceptance_criteria", "task_ids", "status", "revision"), "plan")
     if document["kind"] != Kind.PLAN.value or not str(document["id"]).startswith("P_"):
@@ -47,7 +73,7 @@ def validate_task(document: dict[str, Any]) -> None:
         raise ValueError("invalid task identity")
     if not isinstance(document["goal"], str) or not document["goal"].strip():
         raise ValueError("task goal must not be empty")
-    _safe_paths(document["references"], "references", {"docs", "ref", "src"})
+    _safe_paths(document["references"], "references", {"inputs", "ref", "src"})
     _safe_paths(document["outputs"], "outputs", {"src"})
     _strings(document["constraints"], "constraints")
     _strings(document["acceptance_criteria"], "acceptance_criteria", nonempty=True)
