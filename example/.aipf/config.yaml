@@ -1,0 +1,7 @@
+schema_version: '1.0'
+notifications:
+  events:
+  - task_completed
+  - plan_completed
+  - blocked
+  timeout_seconds: 10

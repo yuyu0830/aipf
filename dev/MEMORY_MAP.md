@@ -2,16 +2,20 @@
 
 This file is the canonical navigation and access map for humans and AI agents. Keep it concise and update it when the managed structure changes.
 
-## Root files
+## Repository boundary
+
+The Git repository root contains `AGENTS.md`, which directs agents into `dev/` for framework development. The generated initialization example is stored separately under `example/`.
+
+## Development root files
 
 | Path | Purpose | User access | AI access |
 |---|---|---|---|
-| `AGENTS.md` | Mandatory agent behavior and boundaries | Read/write | Read; write only on explicit user request |
+| `../AGENTS.md` | Mandatory repository behavior and boundaries | Read/write | Read; write only on explicit user request |
 | `SKILLS.md` | Reusable project workflows | Read/write | Read; write only on explicit user request |
 | `PROJECT.md` | Korean status view and next action | Read; edit notification conditions | Read/write |
 | `MEMORY_MAP.md` | Navigation, ownership, and access map | Read/write | Read/write |
 
-## Project directories
+## Development directories
 
 | Path | Purpose | User access | AI access |
 |---|---|---|---|
@@ -23,6 +27,12 @@ This file is the canonical navigation and access map for humans and AI agents. K
 | `.aipf/audits/` | Execution events and user decisions | Read/review | Read/write, append-oriented |
 | `.aipf/runtime.yaml` | Current plan, task, state, and temporary execution data | Read | Read/write |
 | `.aipf/config.yaml` | Framework and Telegram notification configuration | Read/edit approved settings | Read/write within policy |
+
+## Generated example
+
+| Path | Purpose | User access | AI access |
+|---|---|---|---|
+| `../example/` | Inspectable output produced by `aipf init` | Read/review | Regenerate only for an approved framework task |
 
 Access rules are framework policy, not operating-system permissions.
 
