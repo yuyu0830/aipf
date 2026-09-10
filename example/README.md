@@ -1,6 +1,6 @@
 # AI Project Framework
 
-AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하고, 작업을 하나씩 수행하며, 사용자 검토를 거쳐 다음 작업으로 진행하는 최소 프레임워크다.
+AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하고, Plan 에이전트가 Task 결과를 검증하며, 필요한 경우에만 사용자 검토를 거쳐 진행하는 최소 프레임워크다.
 
 버전: `0.2.1`
 
@@ -8,11 +8,11 @@ AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하�
 
 - 대화 내용이 사라져도 파일만 읽으면 프로젝트를 이어갈 수 있다.
 - AI가 목표를 자동으로 작업으로 분해하지 않는다. 사용자와 AI가 대화로 Plan과 Task를 합의한다.
-- 한 번에 활성 Task 하나만 수행한다.
+- 하나의 Task 에이전트는 하나의 Task를 수행하며, 독립적인 Task는 Plan 에이전트 판단으로 병렬 수행할 수 있다.
 - 초기 설계 세션은 프로젝트 명세와 전체 Roadmap만 담당한다.
 - 이후 세션은 Plan 하나를 제안부터 완료까지 담당하고, 다음 Plan은 새 세션에서 시작한다.
-- Plan 승인 전에는 선택한 단계와 수행 방식을 보고하고, Task 승인 전에는 실제 결과와 검증 근거를 보고한다.
-- Task 결과의 최종 판단은 사용자가 한다.
+- Plan 승인 전에는 선택한 단계와 수행 방식을 보고한다. Task 결과는 먼저 Plan 에이전트가 검토하고, 예외가 있을 때만 실제 결과와 검증 근거를 사용자에게 검토 요청한다.
+- 모든 Task 결과가 수용된 뒤 Plan 완료는 사용자가 최종 확인한다.
 - 프로젝트 상태와 생성물은 사람이 직접 읽을 수 있는 파일로 관리한다.
 - `PROJECT_FLOW.md`는 Plan 실행 흐름을 빠르게 파악하기 위한 읽기 전용 투영이다. Task와 Evidence는 표시하지 않는다.
 
@@ -29,16 +29,18 @@ AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하�
                 ↓
             사용자 Plan 승인
                 ↓
-             Task 하나 시작
+      독립 Task 병렬 또는 순차 시작
                 ↓
-       AI가 생성물 제작·검증·제출
+       Task 에이전트가 생성물 제작·검증·결과 반환
                 ↓
-      사용자 approve/revise/retry/cancel
+          Plan 에이전트 결과 검토
                 ↓
-           Audit 기록 후 계속
+   일반 결과 수용 / 예외만 사용자 검토
+                ↓
+      Plan 완료 사용자 최종 확인
 ```
 
-AIPF는 AI 모델을 직접 선택하거나 호출하지 않는다. Codex, Claude Code 또는 다른 AI가 프로젝트 파일을 읽고 작업하는 실행 주체가 된다. CLI는 상태와 사용자 검토 지점을 관리한다.
+AIPF는 AI 모델을 직접 선택하거나 호출하지 않는다. Codex, Claude Code 또는 다른 AI가 프로젝트 파일을 읽고 작업하는 실행 주체가 된다. 이 프로젝트의 Task 서브 에이전트 호출은 `gpt-5.6-luna`와 `xhigh`를 명시하며, CLI는 상태와 사용자 검토 지점을 관리한다.
 
 ## 프로젝트 구조
 
@@ -134,9 +136,11 @@ checkpoint ID는 Plan에 hash 대신 저장하고 Git commit 메시지에도 동
 
 `.aipf/tasks/T_000.yaml`에 한 번에 실행할 작업 하나를 저장한다. 주요 항목은 목표, 참조 파일, 출력 파일, 제약, 완료 조건, 검증 방법, 결과와 상태다.
 
-Task는 Plan의 `task_ids` 순서대로 실행된다. 활성 Plan에 속하지 않는 Task는 실행하지 않는다.
+Task는 Plan의 `task_ids`와 의존성을 기준으로 실행된다. 활성 Plan에 속하지 않는 Task는 실행하지 않는다. 결과 의존성이 없고 선언된 output 경로가 겹치지 않는 Task는 병렬 실행할 수 있으며, 병렬 실행 중인 Task ID는 durable Plan 객체가 아니라 `.aipf/runtime.yaml`의 `active_task_ids`에 저장한다.
 
-Task는 최신 `remaining`, `decisions`와 모든 제출의 `evidence_ids`를 보존한다. 수행 중 발견한 후속 작업은 대화나 별도 TODO 파일이 아니라 `remaining`에 기록한다.
+Plan 에이전트는 작은 Task를 직접 수행하거나 Task 에이전트를 호출할 수 있다. Task 에이전트 생성 권한은 Plan 에이전트에게만 있으며 Task 에이전트가 다른 Task 에이전트를 생성하는 것은 금지한다. 모든 호출은 `gpt-5.6-luna`, reasoning `xhigh`를 명시한다. Plan 에이전트는 병렬 결과를 통합하고 검증할 책임이 있다.
+
+Task는 최신 `remaining`, `decisions`와 모든 제출의 `evidence_ids`를 보존한다. Task 에이전트는 선언된 산출물만 변경하고 `summary`, `changes`, `outputs`, `verification`, `remaining`, `decisions`를 구조화해 Plan 에이전트에게 반환한다. Task 에이전트는 Task·Evidence·Audit·Plan·runtime을 직접 수정하지 않는다. Plan 에이전트는 모든 결과를 먼저 검증하고 관리 객체를 순차 기록한다. 승인된 범위·완료 조건·검증을 충족한 일반 결과는 Plan 에이전트가 수용하며 사용자 검토나 Audit을 만들지 않는다. 승인 내용과 다르거나 검증 실패·미완료·결정 필요·산출물 누락·범위 변경·중요 위험 또는 외부 영향·검증 불확실성이 있으면 사용자 검토를 요청한다. 기록 전에 세션이 중단되면 다음 Plan 세션은 산출물과 Git 변경을 검사하고 검증을 다시 실행한 뒤 확인된 사실만 복구한다.
 
 ### Evidence
 
@@ -265,7 +269,7 @@ AI가 사용자 피드백을 반영한 payload를 다시 저장하고 승인을 
 aipf --directory /path/to/project run
 ```
 
-CLI는 활성 Plan에서 아직 완료되지 않은 첫 Task를 선택한다. 다음 내용을 출력한다.
+Plan 에이전트는 활성 Plan에서 실행 가능한 미완료 Task를 선택한다. 독립적인 Task는 여러 Task 에이전트에 병렬 위임할 수 있으며, 각 Task 에이전트는 하나의 Task만 수행한다. 다음 내용을 각 Task에 대해 확인한다.
 
 - Task ID와 목표
 - 참조할 파일
@@ -284,6 +288,7 @@ AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`를 수정하�
 ```bash
 aipf --directory /path/to/project task submit \
   --target T_000 \
+  --plan-review \
   --summary "보고서 초안 작성 완료" \
   --change "요구사항과 원본을 바탕으로 보고서 초안을 작성" \
   --evidence "문서 구조와 요구사항 대조 완료" \
@@ -294,9 +299,30 @@ aipf --directory /path/to/project task submit \
 
 제출할 때마다 새 Evidence 객체가 생성되고 Task의 `evidence_ids`에 연결된다. Task의 `remaining`과 `decisions`도 최신 제출 내용으로 갱신된다. 제출 직후 CLI는 이 Evidence를 바탕으로 Task 완료 보고를 출력한다. 보고에는 목표, 결과 요약, 실제 수행·변경, 제출 산출물, 검증 결과, 미완료 사항·알려진 문제, 사용자 결정 필요 사항, 선언했지만 제출하지 않은 산출물 및 다음 검토 행동이 포함된다. 결과에는 계획이 아니라 실제 수행한 사실만 기록한다. 검증하지 않은 항목을 성공으로 보고하면 안 되며, 계획과 실제가 다르면 `remaining` 또는 `decisions`에 명시한다.
 
-제출 후 상태는 `awaiting_task_confirmation`이 된다.
+제출 후 Plan 에이전트가 결과를 검토한다. 일반 결과가 승인된 범위·완료 조건·검증을 모두 충족하면 Plan 에이전트가 수용하고 다음 Task로 진행한다. 이 수용은 사용자 검토나 Audit을 자동으로 만들지 않는다.
 
-## 6. 사용자 Task 검토
+```bash
+aipf --directory /path/to/project task accept --target T_000
+```
+
+사용자 판단 조건이 있으면 Plan 검토 후 사용자 검토로 전환한다.
+
+```bash
+aipf --directory /path/to/project task accept --target T_000 --user-review
+```
+
+## 6. 예외적인 Task 결과 검토
+
+Plan 에이전트는 다음 경우에만 사용자 검토를 요청한다.
+
+- 승인된 Plan 또는 Task 범위와 실제 결과가 다름
+- 완료 조건이나 검증을 충족하지 못함
+- `remaining` 또는 `decisions`가 남음
+- 선언된 산출물이 누락됨
+- 범위가 변경되거나 중요한 위험·외부 영향이 발생함
+- Plan 에이전트가 결과를 확신 있게 검증할 수 없음
+
+예외 결과 승인:
 
 결과 승인:
 
@@ -323,7 +349,7 @@ Task와 프로젝트 취소:
 aipf --directory /path/to/project review cancel --target T_000
 ```
 
-일반적인 사용자 선택은 상태와 Task의 `feedback`에 반영하며 자동으로 Audit을 만들지 않는다. 장기 보존할 중요한 판단이면 Plan 에이전트가 `--audit-summary`를 함께 제공한다.
+예외 결과에 대한 사용자 선택은 상태와 Task의 `feedback`에 반영하며 자동으로 Audit을 만들지 않는다. 장기 보존할 중요한 판단이면 Plan 에이전트가 `--audit-summary`를 함께 제공한다.
 
 ```bash
 aipf --directory /path/to/project review approve \
@@ -331,11 +357,11 @@ aipf --directory /path/to/project review approve \
   --audit-summary "필수 산출물 일부를 후속 Plan으로 이관하기로 승인"
 ```
 
-`approve`이면 다음 Task로 진행한다. 마지막 Task를 승인하면 Plan은 `completed`가 되고 프로젝트는 다음 Plan을 기다리는 `awaiting_plan`으로 돌아간다. 현재 세션은 다음 Plan을 만들지 않고 종료한다.
+`approve`이면 해당 예외 결과를 수용하고 다음 Task로 진행한다. 모든 Task 결과가 Plan 에이전트에 의해 수용되면 Plan 완료 보고를 사용자에게 제시하고 최종 확인을 받는다. 사용자가 확인한 뒤 Plan은 `completed`가 되고 프로젝트는 다음 Plan을 기다리는 `awaiting_plan`으로 돌아간다. 현재 세션은 다음 Plan을 만들지 않고 종료한다.
 
 ## 7. 실행 checkpoint와 복원
 
-Plan 에이전트가 구분한 한 번의 실행이 끝나면 참여한 Task를 묶어 checkpoint를 생성한다. 하나의 실행에 여러 Task를 포함할 수 있고, 하나의 Task가 여러 실행에 포함될 수도 있다.
+Plan 에이전트가 구분한 한 번의 실행이 끝나면 참여한 Task를 묶어 하나의 checkpoint를 생성한다. 하나의 실행에 여러 병렬 Task를 포함할 수 있고, 하나의 Task가 여러 실행에 포함될 수도 있다. 실행 중인 병렬 Task ID는 `.aipf/runtime.yaml`의 `active_task_ids`로 추적하고, 결과를 관리 객체에 반영한 뒤 제거한다.
 
 ```bash
 aipf --directory /path/to/project checkpoint create \
@@ -405,15 +431,16 @@ used_by:
 
 원본을 가공한 결과는 `ref/`가 아니라 `src/`에 저장한다.
 
-## Telegram 알림
+## Telegram 알림과 사용자 검토
 
-Telegram token과 chat ID는 파일에 저장하지 않는다. 환경 변수만 사용한다.
+Telegram token, 허용 chat ID, 허용 user ID는 파일에 저장하지 않는다. 환경 변수만 사용한다.
 
 Bash:
 
 ```bash
 export AIPF_TELEGRAM_BOT_TOKEN="..."
 export AIPF_TELEGRAM_CHAT_ID="..."
+export AIPF_TELEGRAM_USER_ID="..."
 ```
 
 C shell:
@@ -421,6 +448,7 @@ C shell:
 ```csh
 setenv AIPF_TELEGRAM_BOT_TOKEN "..."
 setenv AIPF_TELEGRAM_CHAT_ID "..."
+setenv AIPF_TELEGRAM_USER_ID "..."
 ```
 
 `PROJECT.md`에서 알림 조건을 설정한다.
@@ -428,17 +456,31 @@ setenv AIPF_TELEGRAM_CHAT_ID "..."
 ```text
 ## Telegram 알림 설정
 
-- 전송 조건: task_completed, plan_completed, blocked
+- 전송 조건: plan_review_required, task_review_required, task_completed, plan_completed, blocked
 ```
 
 지원 조건:
 
+- `plan_review_required`: Plan 승인 요청을 보내고 답변을 기다림
+- `task_review_required`: Plan 에이전트가 예외로 분류한 Task 결과의 검토 요청을 보내고 답변을 기다림
 - `task_completed`
 - `plan_completed`
 - `blocked`
 - `never`
 
-환경 변수가 없으면 알림을 건너뛴다. Telegram 실패는 Task 또는 프로젝트 상태를 변경하지 않는다.
+이 한 줄이 프로젝트별 Telegram 동작 설정의 원본이다. 사용자는 직접 쉼표 구분 목록을 수정하거나 에이전트에게 “Task 검토 때만 보내줘”처럼 요청할 수 있다. 에이전트는 이를 `task_review_required`만 남기는 식으로 반영한다. `never`는 반드시 단독으로 사용한다. `status` 등으로 `PROJECT.md`를 다시 생성해도 이 줄은 보존된다.
+
+검토가 필요한 Plan 또는 Task를 알릴 때는 설정된 개인 사용자 한 명에게만 `approve`, `revise`, `retry`, `cancel`, `defer` 버튼을 제공한다. `revise`를 선택하면 텍스트 피드백을 함께 받아 기존 검토 피드백으로 저장한다. `defer`는 현재 대기를 즉시 끝내지만 Plan·Task·프로젝트 상태를 바꾸지 않으며, 나중에 같은 명령으로 검토 대기를 다시 시작할 수 있다.
+
+응답 대기는 다음 명령으로 한 번만 실행한다.
+
+```bash
+aipf --directory /path/to/project telegram wait
+```
+
+기본 전체 대기 시간은 600초(10분)다. `--timeout`으로 초 단위 시간을 지정할 수 있다. 응답이 없으면 timeout으로 종료하며 Plan·Task·프로젝트 상태를 변경하지 않는다. 네트워크 오류나 `Ctrl+C`도 상태를 변경하지 않는다. 필요하면 같은 명령을 다시 실행한다.
+
+환경 변수가 없으면 일반 알림은 건너뛰고, 검토 대기는 오류로 종료한다. Telegram 실패는 Task 또는 프로젝트 상태를 변경하지 않는다. 현재 범위에는 webhook, 상시 실행 daemon, 다중 사용자, 자유 대화형 Telegram 인터페이스가 포함되지 않는다.
 
 ## 현재 범위
 
@@ -446,9 +488,9 @@ setenv AIPF_TELEGRAM_CHAT_ID "..."
 
 - 목표의 자동 Task 분해
 - AI 모델 자동 선택과 직접 API 호출
-- 다중 agent 병렬 실행
 - 자동 심사와 AI 법정 검토
 - 영구 Session과 Knowledge 객체
+- Telegram webhook, 상시 실행 daemon, 다중 사용자, 자유 대화형 인터페이스
 
 실제 프로젝트를 진행하며 필요성이 확인된 기능만 이후 버전에 추가한다.
 

@@ -10,6 +10,10 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 - A Plan session owns exactly one Plan from proposal through user approval, Task execution, review, and Plan completion.
 - A completed Plan session must not create the next Plan. End the session after recording its result and next action.
 - The next Plan is proposed and performed in a new session.
+- The Plan agent may execute a small Task directly or create Task subagents. Only the Plan agent may create Task agents; a Task agent must never create another Task agent.
+- Invoke every Task subagent explicitly with model `gpt-5.6-luna` and reasoning effort `xhigh`.
+- Run Tasks in parallel only when they have no result dependency and their declared output paths do not overlap. Otherwise run them sequentially. The Plan agent verifies and integrates every result in either case.
+- If review is deferred or times out, preserve the current review state, write a clear resume action, and end the session. A new session resumes the same review rather than creating replacement work.
 
 ## Starting a Plan session
 
@@ -22,7 +26,7 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 7. Before requesting approval, report the selected roadmap stage, prior Plan basis, approach, scope, ordered Tasks, risks, and acceptance criteria.
 8. Save and perform the Plan only after user approval.
 
-- Follow the approved Plan and perform one Task at a time.
+- Follow the approved Plan. A Task agent performs one Task; the Plan agent may run independent Tasks in parallel when the declared output paths and dependencies permit it.
 - Treat `inputs/` as user-owned and read-only.
 - Modify `inputs/PROJECT_SPEC.md` only when the user explicitly requests it. Never create another project specification.
 - Keep originals under `ref/` immutable.
@@ -32,10 +36,15 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 - Remove temporary files when the Task is complete. Do not leave scratch files or ad hoc directories in the project root.
 - Keep the project root limited to the managed documents and directories in the canonical layout; do not create unrelated root files or directories.
 - Read only files listed in the active Task's `references` unless more context is required.
-- Submit results for user review. The user chooses `approve`, `revise`, `retry`, or `cancel`.
-- Before submitting a Task, record and report its result: summary, actual changes, outputs, verification evidence, remaining work or known issues, and any decision needed from the user.
-- Record every follow-up item in the Task's `remaining`; do not leave it only in conversation or in a separate ad hoc TODO or handoff file.
-- Each submission creates a new immutable Evidence object. Never replace Evidence from an earlier attempt.
+- Return every Task result to the Plan agent for review first. The Plan agent may accept a routine result without user review when the approved scope, completion criteria, declared outputs, and verification all match. The user chooses `approve`, `revise`, `retry`, or `cancel` only when the Plan agent identifies an exception, and always confirms completion of the whole Plan.
+- Telegram review is available only for one configured personal user. A review-required notification exposes `approve`, `revise`, `retry`, `cancel`, and `defer`; `revise` must preserve the user's text feedback, while `defer` ends only the current wait and leaves persisted state unchanged.
+- Before sending Telegram, read `PROJECT.md` → `Telegram 알림 설정` → `전송 조건`. Run `aipf telegram wait` for Plan approval, and for a Task only when the Plan agent has identified an exception and `task_review_required` is enabled. It is a one-shot wait with a default total timeout of 600 seconds. Timeout, network failure, and interruption leave persisted state unchanged. After every Task result is accepted, present the Plan completion report and obtain explicit user confirmation before marking the Plan `completed`; use the configured review path when that confirmation is handled through Telegram.
+- When the user asks to change Telegram transmission timing, edit only the comma-separated `전송 조건` line in `PROJECT.md` using the documented condition names. Use `never` alone to disable all Telegram transmission. Do not change implementation code for a project-specific preference.
+- Read Telegram credentials only from environment variables. Do not add webhook, always-on daemon, multi-user, or free-form Telegram chat behavior.
+- A Task agent modifies only its declared outputs and returns a structured result containing summary, actual changes, outputs, verification evidence, remaining work or known issues, and decisions needed. It does not modify Task, Evidence, runtime, or other management objects.
+- The Plan agent verifies each returned result, then serially updates the Task and creates one new immutable Evidence object. It records every follow-up item in Task `remaining`; never replace Evidence from an earlier attempt. For parallel execution, it adds and removes the participating IDs in runtime `active_task_ids` and persists management objects only after each result has been reviewed.
+- Request user review when the result differs from the approved Plan, fails a criterion or verification, has remaining work or a decision needed, omits an output, changes scope, introduces material risk or external impact, or cannot be confidently validated. Routine acceptance does not create an Audit. After all Task results are accepted, obtain the user's final Plan-completion confirmation.
+- If a session stops after output changes but before result persistence, the next Plan session inspects those outputs and Git changes, reruns verification, and reconstructs Task and Evidence only from the reverified facts.
 - Record facts, not intended work. Do not claim an unverified item succeeded; disclose differences from the approved Plan in `remaining` or `decisions`.
 - Do not create an Audit for routine state changes or ordinary reviews. The Plan agent creates one only for a material project decision that future work needs to understand.
 - Record execution checkpoints in the Plan's `checkpoints`. One checkpoint may cover multiple Tasks, and one Task may appear in multiple checkpoints.

@@ -33,4 +33,4 @@ Example project
 
 ## Telegram 알림 설정
 
-- 전송 조건: task_completed, plan_completed, blocked
+- 전송 조건: plan_review_required, task_review_required, task_completed, plan_completed, blocked

@@ -11,7 +11,13 @@ from aipf.validation import validate_config
 DEFAULT_CONFIG: dict[str, Any] = {
     "schema_version": "1.0",
     "notifications": {
-        "events": ["task_completed", "plan_completed", "blocked"],
+        "events": [
+            "plan_review_required",
+            "task_review_required",
+            "task_completed",
+            "plan_completed",
+            "blocked",
+        ],
         "timeout_seconds": 10,
     },
 }

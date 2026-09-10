@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from aipf.models import Kind, TaskStatus
+from aipf.runtime import active_task_ids
 from aipf.store import ProjectStore
 
 
@@ -84,8 +85,13 @@ def render_flow_graph(store: ProjectStore, runtime: dict[str, Any]) -> str:
     audits = list(store.objects(Kind.AUDIT))
     current_node = "current_runtime"
     current_plan_id = runtime.get("active_plan_id")
-    if not current_plan_id and runtime.get("active_task_id") in tasks_by_id:
-        current_plan_id = tasks_by_id[runtime["active_task_id"]].get("plan_id")
+    runtime_task_ids = active_task_ids(runtime)
+    if not current_plan_id:
+        for task_id in runtime_task_ids:
+            if task_id in tasks_by_id:
+                current_plan_id = tasks_by_id[task_id].get("plan_id")
+                if current_plan_id:
+                    break
 
     nodes: list[str] = [
         _flow_node(
@@ -216,6 +222,7 @@ def render_project(store: ProjectStore, runtime: dict[str, Any]) -> str:
         f"- `{item['id']}` {_line(item['event'])}: {_line(item['summary'])}" for item in audits[-5:]
     ) or "- 없음"
     state = runtime["state"]
+    runtime_task_ids = active_task_ids(runtime)
     review_context = "- 없음"
     if state == "awaiting_plan_confirmation":
         plan = store.read_object(Kind.PLAN, runtime["active_plan_id"])
@@ -226,21 +233,52 @@ def render_project(store: ProjectStore, runtime: dict[str, Any]) -> str:
             f"- 직전 Plan: {prior_plan}",
         ])
         next_action = f"Plan `{runtime['active_plan_id']}` 보고 검토 후 승인 또는 수정"
-    elif state == "awaiting_task_confirmation":
-        task = store.read_object(Kind.TASK, runtime["active_task_id"])
-        evidence = _latest_evidence(store, task)
-        evidence_id = task["evidence_ids"][-1]
-        result_outputs = ", ".join(evidence["outputs"]) or "없음"
-        remaining = "; ".join(task["remaining"]) or "없음"
-        decisions = "; ".join(task["decisions"]) or "없음"
+    elif state == "awaiting_plan_completion_confirmation":
+        plan = store.read_object(Kind.PLAN, runtime["active_plan_id"])
         review_context = "\n".join([
-            f"- Evidence: `{evidence_id}`",
-            f"- Task 결과: {_line(evidence['summary'])}",
-            f"- 제출 산출물: {result_outputs}",
-            f"- 미완료 사항: {remaining}",
-            f"- 사용자 결정 필요: {decisions}",
+            f"- Plan: `{runtime['active_plan_id']}`",
+            f"- Plan 목표: {_line(plan['goal'])}",
+            "- 모든 Task가 Plan 검토를 통과함",
         ])
-        next_action = f"Task `{runtime['active_task_id']}` 완료 보고 검토 후 approve, revise, retry, cancel 중 선택"
+        next_action = (
+            f"Plan `{runtime['active_plan_id']}` 완료 보고 검토 후 "
+            "approve, revise, retry, cancel, defer 중 선택"
+        )
+    elif state in {"awaiting_task_confirmation", "running", "awaiting_plan_task_review"}:
+        review_tasks = [
+            store.read_object(Kind.TASK, task_id)
+            for task_id in runtime_task_ids
+            if store.path(Kind.TASK, task_id).exists()
+            and store.read_object(Kind.TASK, task_id).get("status") == TaskStatus.AWAITING_REVIEW
+        ]
+        contexts: list[str] = []
+        for task in review_tasks:
+            evidence = _latest_evidence(store, task)
+            evidence_id = task["evidence_ids"][-1] if task["evidence_ids"] else "없음"
+            result_outputs = ", ".join(evidence.get("outputs", [])) or "없음"
+            remaining = "; ".join(task["remaining"]) or "없음"
+            decisions = "; ".join(task["decisions"]) or "없음"
+            contexts.append("\n".join([
+                f"- Task: `{task['id']}`",
+                f"- Evidence: `{evidence_id}`",
+                f"- Task 결과: {_line(evidence.get('summary', ''))}",
+                f"- 제출 산출물: {result_outputs}",
+                f"- 미완료 사항: {remaining}",
+                f"- 사용자 결정 필요: {decisions}",
+            ]))
+        review_context = "\n\n".join(contexts) or "- 없음"
+        plan_review_ids = [
+            task["id"] for task in review_tasks if task.get("review_stage", "user") == "plan"
+        ]
+        user_review_ids = [
+            task["id"] for task in review_tasks if task.get("review_stage", "user") == "user"
+        ]
+        if plan_review_ids:
+            next_action = f"Plan 에이전트가 Task 검토: {', '.join(plan_review_ids)}; 검토 후 task accept 실행"
+        elif user_review_ids:
+            next_action = f"Task 사용자 검토 대기: {', '.join(user_review_ids)}; approve, revise, retry, cancel 중 선택"
+        else:
+            next_action = "활성 Task 실행 및 결과 제출"
     elif state == "ready":
         next_action = "`aipf run`으로 다음 task 시작"
     elif state == "completed":
@@ -300,7 +338,7 @@ def notification_setting(path: Path) -> str:
         match = re.search(r"(?m)^- 전송 조건:\s*(.+)$", path.read_text(encoding="utf-8"))
         if match:
             return match.group(1).strip()
-    return "task_completed, plan_completed, blocked"
+    return "plan_review_required, task_review_required, task_completed, plan_completed, blocked"
 
 
 def write_project(store: ProjectStore, runtime: dict[str, Any]) -> None:

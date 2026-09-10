@@ -1,3 +1,5 @@
+import json
+import os
 import tempfile
 import subprocess
 import re
@@ -5,14 +7,15 @@ import unittest
 from contextlib import redirect_stdout
 from io import BytesIO, StringIO
 from pathlib import Path
-from unittest.mock import patch
+from urllib.parse import parse_qs
+from unittest.mock import Mock, patch
 from urllib.error import URLError
 
 import yaml
 
 from aipf.cli import main
 from aipf.models import Kind
-from aipf.notifications import NotificationResult, send_telegram
+from aipf.notifications import NotificationResult, send_telegram, telegram_review_key, wait_for_review
 from aipf.store import ProjectStore
 
 
@@ -49,6 +52,27 @@ def plan_spec() -> dict:
             "verification": {"commands": [], "evidence": ["src/report.md"]},
         }],
     }
+
+
+def parallel_plan_spec() -> dict:
+    """Return two independent Tasks with disjoint declared output paths."""
+    spec = plan_spec()
+    task = spec["tasks"][0]
+    spec["tasks"] = [
+        task | {
+            "id": "T_000",
+            "goal": "Write the first report section",
+            "outputs": ["src/report-a.md"],
+            "acceptance_criteria": ["src/report-a.md exists"],
+        },
+        task | {
+            "id": "T_001",
+            "goal": "Write the second report section",
+            "outputs": ["src/report-b.md"],
+            "acceptance_criteria": ["src/report-b.md exists"],
+        },
+    ]
+    return spec
 
 
 def write_project_spec(root: Path) -> None:
@@ -96,6 +120,91 @@ def prepare_submitted_task(directory: str) -> ProjectStore:
     return ProjectStore(root)
 
 
+def prepare_running_task(directory: str) -> ProjectStore:
+    """Create the smallest project state that can receive a Telegram decision."""
+    root = Path(directory)
+    main(["--directory", directory, "init", "--goal", "Review project"])
+    write_project_spec(root)
+    (root / "inputs" / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    spec_path = root / "plan.yaml"
+    spec_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
+    main(["--directory", directory, "plan", "apply", "--file", str(spec_path)])
+    main(["--directory", directory, "review", "approve", "--target", "P_000"])
+    main(["--directory", directory, "run"])
+    return ProjectStore(root)
+
+
+class TelegramResponse(BytesIO):
+    """Minimal context-manager response accepted by urllib callers."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def telegram_response(payload: dict) -> TelegramResponse:
+    return TelegramResponse(json.dumps(payload).encode("utf-8"))
+
+
+def telegram_request_payload(request) -> dict:
+    return {
+        key: values[-1].decode("utf-8") if isinstance(values[-1], bytes) else values[-1]
+        for key, values in parse_qs(request.data.decode("utf-8")).items()
+    }
+
+
+def telegram_state_snapshot(store: ProjectStore) -> dict[str, bytes]:
+    """Capture persisted execution state to prove rejected waits are read-only."""
+    paths = [
+        store.runtime_path,
+        store.root / "PROJECT.md",
+        store.root / "PROJECT_FLOW.md",
+        *store.paths(Kind.PLAN),
+        *store.paths(Kind.TASK),
+        *store.paths(Kind.EVIDENCE),
+        *store.paths(Kind.AUDIT),
+    ]
+    return {str(path): path.read_bytes() for path in paths if path.exists()}
+
+
+def callback_update(
+    data: str,
+    *,
+    update_id: int = 1,
+    chat_id: str = "chat-1",
+    user_id: int = 7,
+) -> dict:
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": f"callback-{update_id}",
+            "from": {"id": user_id},
+            "message": {"message_id": 10, "chat": {"id": chat_id, "type": "private"}},
+            "data": data,
+        },
+    }
+
+
+def text_update(
+    text: str,
+    *,
+    update_id: int = 2,
+    chat_id: str = "chat-1",
+    user_id: int = 7,
+) -> dict:
+    return {
+        "update_id": update_id,
+        "message": {
+            "message_id": 11,
+            "chat": {"id": chat_id, "type": "private"},
+            "from": {"id": user_id},
+            "text": text,
+        },
+    }
+
+
 class CoreLifecycleTests(unittest.TestCase):
     def test_init_creates_visible_structure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -106,6 +215,66 @@ class CoreLifecycleTests(unittest.TestCase):
             for object_directory in ("plans", "tasks", "audits", "evidence"):
                 self.assertTrue((root / ".aipf" / object_directory / ".gitkeep").is_file(), object_directory)
             self.assertEqual(main(["--directory", directory, "validate"]), 0)
+
+    def test_runtime_initializes_active_task_ids_and_reads_legacy_single_task_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Runtime compatibility"]), 0)
+            store = ProjectStore(root)
+            runtime = store.read(store.runtime_path)
+            self.assertEqual(runtime.get("active_task_ids"), [])
+            self.assertIsNone(runtime.get("active_task_id"))
+
+            # Projects created before parallel execution have only active_task_id.
+            legacy = dict(runtime)
+            legacy.pop("active_task_ids")
+            legacy["active_task_id"] = "T_000"
+            store.write(store.runtime_path, legacy)
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+            status = StringIO()
+            with redirect_stdout(status):
+                self.assertEqual(main(["--directory", directory, "status"]), 0)
+            self.assertIn("task: T_000", status.getvalue())
+
+    def test_parallel_independent_tasks_are_recorded_in_runtime_not_plan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Parallel execution"]), 0)
+            write_project_spec(root)
+            (root / "inputs" / "docs" / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+            spec_path = root / "parallel.yaml"
+            spec_path.write_text(yaml.safe_dump(parallel_plan_spec(), sort_keys=False), encoding="utf-8")
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(spec_path)]), 0)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "P_000"]), 0)
+
+            store = ProjectStore(root)
+            plan_before = store.read_object(Kind.PLAN, "P_000")
+            task_ids = plan_before["task_ids"]
+            self.assertEqual(task_ids, ["T_000", "T_001"])
+            self.assertEqual(main(["--directory", directory, "run", "--task", "T_000"]), 0)
+            self.assertEqual(main(["--directory", directory, "run", "--task", "T_001"]), 0)
+
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+            persisted = store.read(store.runtime_path)
+            self.assertEqual(persisted["active_task_ids"], task_ids)
+            self.assertEqual(persisted["active_task_id"], "T_000")
+            self.assertEqual(store.read_object(Kind.PLAN, "P_000")["task_ids"], task_ids)
+
+    def test_unpersisted_output_is_not_treated_as_verified_task_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_running_task(directory)
+            (root / "src" / "report.md").write_text("output exists but is not yet verified\n", encoding="utf-8")
+            before = store.read_object(Kind.TASK, "T_000")
+            self.assertEqual(before["status"], "running")
+            self.assertEqual(before["evidence_ids"], [])
+
+            # A new session must reverify and submit the result; validation alone
+            # must not infer completion from an unpersisted output file.
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+            after = store.read_object(Kind.TASK, "T_000")
+            self.assertEqual(after["status"], "running")
+            self.assertEqual(after["evidence_ids"], [])
 
     def test_project_flow_initial_graph_is_deterministic_and_excludes_task_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -231,7 +400,14 @@ class CoreLifecycleTests(unittest.TestCase):
                 (root / "MEMORY_MAP.md").read_text(encoding="utf-8"),
             )
             self.assertIn("## 파일 생성 위치 규약", (root / "README.md").read_text(encoding="utf-8"))
-            self.assertIn("Create declared outputs under `src/`.", (root / "SKILLS.md").read_text(encoding="utf-8"))
+            skills = (root / "SKILLS.md").read_text(encoding="utf-8")
+            self.assertIn("Create only declared outputs under `src/`", skills)
+            self.assertIn("Do not modify management objects or create Evidence", skills)
+            self.assertIn("Routine accepted results need no user review or Audit", skills)
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("The Plan agent verifies each returned result", agents)
+            self.assertRegex(agents, r"(?i)(routine result|routine acceptance)")
+            self.assertRegex(agents, r"(?i)user review.*(needed|required|exception)")
             self.assertIn("- 경로: `inputs/docs/`", (root / "inputs" / "PROJECT_SPEC.md").read_text(encoding="utf-8"))
 
     def test_plan_apply_requires_project_spec_roadmap(self):
@@ -412,17 +588,27 @@ class CoreLifecycleTests(unittest.TestCase):
             with patch("aipf.cli.notify", return_value=NotificationResult("failed", "network")):
                 self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
             store = ProjectStore(root)
-            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan")
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan_completion_confirmation")
             self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "completed")
+            self.assertEqual(store.read_object(Kind.PLAN, "P_000")["status"], "approved")
             self.assertEqual(len(store.paths(Kind.AUDIT)), 0)
+
+            # A completed Task only produces a Plan completion report.  The
+            # Plan remains open until the user explicitly confirms it.
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "P_000"]), 0)
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan")
+            self.assertEqual(store.read_object(Kind.PLAN, "P_000")["status"], "completed")
 
     def test_completed_plan_waits_for_new_session_and_new_plan(self):
         with tempfile.TemporaryDirectory() as directory:
             store = prepare_submitted_task(directory)
             self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
             runtime = store.read(store.runtime_path)
-            self.assertEqual(runtime["state"], "awaiting_plan")
+            self.assertEqual(runtime["state"], "awaiting_plan_completion_confirmation")
             self.assertEqual(runtime["active_plan_id"], "P_000")
+
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "P_000"]), 0)
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan")
 
             next_path = Path(directory) / "next.yaml"
             next_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
@@ -436,6 +622,8 @@ class CoreLifecycleTests(unittest.TestCase):
             store = prepare_submitted_task(directory)
             self.assertEqual(main(["--directory", directory, "project", "complete"]), 2)
             self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            self.assertEqual(main(["--directory", directory, "project", "complete"]), 2)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "P_000"]), 0)
             self.assertEqual(main(["--directory", directory, "project", "complete"]), 0)
             self.assertEqual(store.read(store.runtime_path)["state"], "completed")
             self.assertEqual(len(store.paths(Kind.AUDIT)), 1)
@@ -474,17 +662,10 @@ class CoreLifecycleTests(unittest.TestCase):
     def test_telegram_transport_is_optional_and_failure_safe(self):
         self.assertEqual(send_telegram("test", environ={}).status, "skipped")
 
-        class Response(BytesIO):
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                self.close()
-
         success = send_telegram(
             "test",
             environ={"AIPF_TELEGRAM_BOT_TOKEN": "token", "AIPF_TELEGRAM_CHAT_ID": "1"},
-            opener=lambda request, timeout: Response(b'{"ok": true}'),
+            opener=lambda request, timeout: TelegramResponse(b'{"ok": true}'),
         )
         self.assertEqual(success.status, "sent")
 
@@ -509,6 +690,10 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertEqual(main([
                 "--directory", directory, "review", "revise", "--target", "P_000", "--feedback", "Replace tasks",
             ]), 0)
+            self.assertEqual(
+                ProjectStore(root).read_object(Kind.PLAN, "P_000")["feedback"],
+                "Replace tasks",
+            )
 
             replacement = plan_spec()
             replacement["tasks"] = [
@@ -524,6 +709,7 @@ class CoreLifecycleTests(unittest.TestCase):
             store = ProjectStore(root)
             runtime = store.read(store.runtime_path)
             self.assertEqual(runtime["active_task_id"], "T_005")
+            self.assertEqual(runtime["active_task_ids"], ["T_005"])
             self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "pending")
 
     def test_submit_requires_change_and_evidence_then_records_detailed_report(self):
@@ -581,6 +767,50 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertIn("Editorial review is still pending", project)
             self.assertIn("Confirm the report tone", project)
 
+    def test_exceptional_task_result_stays_awaiting_plan_or_user_review(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_running_task(directory)
+            (root / "src" / "report.md").write_text("# Report with follow-up\n", encoding="utf-8")
+            self.assertEqual(main([
+                "--directory", directory, "task", "submit", "--target", "T_000",
+                "--summary", "Report written with an unresolved issue",
+                "--plan-review",
+                "--change", "Wrote src/report.md", "--evidence", "Checked the report",
+                "--output", "src/report.md", "--remaining", "Editorial review is pending",
+                "--decision-needed", "Choose the publication tone",
+            ]), 0)
+
+            task = store.read_object(Kind.TASK, "T_000")
+            runtime = store.read(store.runtime_path)
+            self.assertEqual(task["status"], "awaiting_review")
+            self.assertEqual(runtime["state"], "awaiting_plan_task_review")
+            self.assertEqual(task["review_stage"], "plan")
+            self.assertEqual(task["remaining"], ["Editorial review is pending"])
+            self.assertEqual(task["decisions"], ["Choose the publication tone"])
+            self.assertEqual(task["evidence_ids"], ["E_000"])
+            self.assertEqual(main([
+                "--directory", directory, "task", "accept", "--target", "T_000", "--user-review",
+            ]), 0)
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_task_confirmation")
+            self.assertEqual(store.read_object(Kind.TASK, "T_000")["review_stage"], "user")
+
+    def test_plan_agent_accepts_routine_result_without_user_review(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_running_task(directory)
+            (root / "src" / "report.md").write_text("# Verified report\n", encoding="utf-8")
+            self.assertEqual(main([
+                "--directory", directory, "task", "submit", "--target", "T_000", "--plan-review",
+                "--summary", "Report written", "--change", "Wrote src/report.md",
+                "--evidence", "All declared checks passed", "--output", "src/report.md",
+            ]), 0)
+            self.assertEqual(main([
+                "--directory", directory, "task", "accept", "--target", "T_000",
+            ]), 0)
+            self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "completed")
+            self.assertEqual(len(store.paths(Kind.AUDIT)), 0)
+
     def test_task_resubmission_creates_new_evidence_and_preserves_history(self):
         for decision in ("revise", "retry"):
             with self.subTest(decision=decision), tempfile.TemporaryDirectory() as directory:
@@ -617,3 +847,309 @@ class CoreLifecycleTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(main(["--directory", directory, "validate"]), 1)
+
+
+class TelegramInteractionTests(unittest.TestCase):
+    telegram_environment = {
+        "AIPF_TELEGRAM_BOT_TOKEN": "test-token",
+        "AIPF_TELEGRAM_CHAT_ID": "chat-1",
+        "AIPF_TELEGRAM_USER_ID": "7",
+    }
+
+    def submit_task(self, directory: str, opener) -> ProjectStore:
+        root = Path(directory)
+        store = prepare_running_task(directory)
+        (root / "src" / "report.md").write_text("# Report\n", encoding="utf-8")
+        with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+            "aipf.notifications.urlopen", side_effect=opener,
+        ):
+            self.assertEqual(main([
+                "--directory", directory, "task", "submit", "--target", "T_000",
+                "--summary", "Report written", "--change", "Wrote src/report.md",
+                "--evidence", "reviewed", "--output", "src/report.md",
+            ]), 0)
+        return store
+
+    def test_review_required_sends_targeted_inline_keyboard_payload(self):
+        requests = []
+        key = telegram_review_key("T_000", "E_000")
+        updates = [callback_update(f"aipf|approve|T_000|{key}")]
+
+        def opener(request, timeout):
+            requests.append((request, timeout))
+            if "/getUpdates" in request.full_url:
+                return telegram_response({"ok": True, "result": [updates.pop(0)]})
+            return telegram_response({"ok": True, "result": {"message_id": 50}})
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, opener)
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+            self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "completed")
+
+        send_requests = [request for request, _ in requests if "/sendMessage" in request.full_url]
+        review_requests = [request for request in send_requests if "reply_markup" in telegram_request_payload(request)]
+        self.assertEqual(len(review_requests), 1)
+        payload = telegram_request_payload(review_requests[0])
+        self.assertEqual(payload["chat_id"], "chat-1")
+        keyboard = json.loads(payload["reply_markup"])["inline_keyboard"]
+        buttons = [button for row in keyboard for button in row]
+        self.assertEqual(
+            {button["callback_data"] for button in buttons},
+            {
+                f"aipf|approve|T_000|{key}", f"aipf|revise|T_000|{key}",
+                f"aipf|retry|T_000|{key}", f"aipf|cancel|T_000|{key}",
+                f"aipf|defer|T_000|{key}",
+            },
+        )
+
+    def test_defer_ends_wait_without_mutating_review_state(self):
+        key = telegram_review_key("T_000", "E_000")
+        update = callback_update(f"aipf|defer|T_000|{key}")
+
+        def opener(request, timeout):
+            if "/getUpdates" in request.full_url:
+                return telegram_response({"ok": True, "result": [update]})
+            return telegram_response({"ok": True, "result": {}})
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            snapshot = telegram_state_snapshot(store)
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_authorized_approve_callback_changes_state_and_replay_is_read_only(self):
+        key = telegram_review_key("T_000", "E_000")
+        update = callback_update(f"aipf|approve|T_000|{key}")
+        responses = [{"ok": True, "result": [update]}]
+
+        def opener(request, timeout):
+            if "/getUpdates" in request.full_url:
+                return telegram_response(responses.pop(0) if responses else {"ok": True, "result": []})
+            return telegram_response({"ok": True, "result": {}})
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            before = telegram_state_snapshot(store)
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+            self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "completed")
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan_completion_confirmation")
+            self.assertNotEqual(before, telegram_state_snapshot(store))
+
+            # A callback already consumed for T_000 is no longer a valid
+            # decision after the Task has moved to completed.
+            after_approval = telegram_state_snapshot(store)
+            replay_clock = iter((0.0, 0.0, 601.0))
+            result = wait_for_review(
+                target="T_000", token="test-token", chat_id="chat-1", user_id="7",
+                review_key="not-the-current-key", opener=lambda request, timeout: telegram_response(
+                    {"ok": True, "result": [update]}
+                ), clock=lambda: next(replay_clock), sleep_fn=lambda _: None,
+            )
+            self.assertEqual(result.status, "timeout")
+            self.assertEqual(telegram_state_snapshot(store), after_approval)
+
+    def test_plan_completion_confirmation_is_targeted_and_defer_is_read_only(self):
+        task_key = telegram_review_key("T_000", "E_000")
+        task_update = callback_update(f"aipf|approve|T_000|{task_key}", update_id=10)
+        sent_payloads = []
+
+        def approve_task_opener(request, timeout):
+            if "/sendMessage" in request.full_url:
+                sent_payloads.append(telegram_request_payload(request))
+                return telegram_response({"ok": True, "result": {}})
+            return telegram_response({"ok": True, "result": [task_update]})
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(
+                directory,
+                lambda request, timeout: telegram_response({"ok": True, "result": {}}),
+            )
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=approve_task_opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan_completion_confirmation")
+            snapshot = telegram_state_snapshot(store)
+
+            def defer_plan_opener(request, timeout):
+                if "/sendMessage" in request.full_url:
+                    sent_payloads.append(telegram_request_payload(request))
+                    return telegram_response({"ok": True, "result": {}})
+                payload = sent_payloads[-1]
+                keyboard = json.loads(payload["reply_markup"])["inline_keyboard"]
+                callbacks = [button["callback_data"] for row in keyboard for button in row]
+                defer_callback = next(value for value in callbacks if value.startswith("aipf|defer|P_000|"))
+                return telegram_response({
+                    "ok": True,
+                    "result": [callback_update(defer_callback, update_id=20)],
+                })
+
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=defer_plan_opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+            plan_review_messages = [
+                payload for payload in sent_payloads
+                if "reply_markup" in payload and "P_000" in payload["reply_markup"]
+            ]
+            self.assertEqual(len(plan_review_messages), 1)
+            keyboard = json.loads(plan_review_messages[0]["reply_markup"])["inline_keyboard"]
+            callbacks = [button["callback_data"] for row in keyboard for button in row]
+            self.assertTrue(callbacks)
+            self.assertTrue(all(callback.split("|")[2] == "P_000" for callback in callbacks))
+
+    def test_unauthorized_chat_or_user_times_out_without_mutation(self):
+        for field, value in (("chat", "other-chat"), ("user", 99)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+                update = callback_update(
+                    "aipf|approve|T_000",
+                    chat_id=value if field == "chat" else "chat-1",
+                    user_id=value if field == "user" else 7,
+                )
+                snapshot = telegram_state_snapshot(store)
+                clock = iter((0.0, 0.0, 601.0))
+
+                def opener(request, timeout):
+                    if "/getUpdates" in request.full_url:
+                        return telegram_response({"ok": True, "result": [update]})
+                    return telegram_response({"ok": True, "result": {}})
+
+                with patch.dict(os.environ, self.telegram_environment, clear=False):
+                    result = wait_for_review(
+                        target="T_000", token="test-token", chat_id="chat-1", user_id="7",
+                        opener=opener, clock=lambda: next(clock), sleep_fn=lambda _: None,
+                    )
+                self.assertEqual(result.status, "timeout")
+                self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_stale_or_wrong_target_callback_is_rejected_without_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            snapshot = telegram_state_snapshot(store)
+            update = callback_update("aipf|approve|T_000|stale-review")
+            clock = iter((0.0, 0.0, 601.0))
+
+            def opener(request, timeout):
+                if "/getUpdates" in request.full_url:
+                    return telegram_response({"ok": True, "result": [update]})
+                return telegram_response({"ok": True, "result": {}})
+
+            with patch.dict(os.environ, self.telegram_environment, clear=False):
+                result = wait_for_review(
+                    target="T_000", token="test-token", chat_id="chat-1", user_id="7",
+                    review_key=telegram_review_key("T_000", "E_000"),
+                    opener=opener, clock=lambda: next(clock), sleep_fn=lambda _: None,
+                )
+            self.assertEqual(result.status, "timeout")
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_wait_in_non_review_state_is_rejected_without_network_or_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_running_task(directory)
+            snapshot = telegram_state_snapshot(store)
+            opener = Mock(side_effect=AssertionError("Telegram must not be called"))
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 2)
+            opener.assert_not_called()
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_project_transmission_condition_can_disable_task_review(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            project_path = Path(directory) / "PROJECT.md"
+            content = project_path.read_text(encoding="utf-8")
+            content = re.sub(
+                r"(?m)^- 전송 조건:.*$",
+                "- 전송 조건: plan_review_required",
+                content,
+            )
+            project_path.write_text(content, encoding="utf-8")
+            snapshot = telegram_state_snapshot(store)
+            opener = Mock(side_effect=AssertionError("Telegram must not be called"))
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 2)
+            opener.assert_not_called()
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_revise_callback_then_feedback_message_updates_task_once(self):
+        updates = [
+            callback_update(
+                f"aipf|revise|T_000|{telegram_review_key('T_000', 'E_000')}",
+                update_id=20,
+            ),
+            text_update("Add more detail", update_id=21),
+        ]
+
+        def opener(request, timeout):
+            if "/getUpdates" in request.full_url:
+                return telegram_response({"ok": True, "result": [updates.pop(0)]})
+            return telegram_response({"ok": True, "result": {}})
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=opener,
+            ):
+                self.assertEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+            task = store.read_object(Kind.TASK, "T_000")
+            self.assertEqual(task["status"], "ready")
+            self.assertEqual(task["feedback"], "Add more detail")
+            self.assertEqual(store.read(store.runtime_path)["state"], "ready")
+
+    def test_default_wait_timeout_is_600_seconds_and_does_not_mutate_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            snapshot = telegram_state_snapshot(store)
+            calls = 0
+            requests = []
+
+            def clock():
+                nonlocal calls
+                calls += 1
+                return 0.0 if calls <= 2 else 600.0
+
+            def opener(request, timeout):
+                requests.append((request, timeout))
+                return telegram_response({"ok": True, "result": []})
+
+            result = wait_for_review(
+                target="T_000", token="test-token", chat_id="chat-1", user_id="7",
+                opener=opener, clock=clock, sleep_fn=lambda _: None,
+            )
+            self.assertEqual(result.status, "timeout")
+            self.assertTrue(any("/getUpdates" in request.full_url for request, _ in requests))
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+    def test_network_error_and_interrupt_leave_review_state_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self.submit_task(directory, lambda request, timeout: telegram_response({"ok": True, "result": {}}))
+            snapshot = telegram_state_snapshot(store)
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=URLError("offline"),
+            ):
+                self.assertNotEqual(main(["--directory", directory, "telegram", "wait"]), 0)
+            self.assertEqual(telegram_state_snapshot(store), snapshot)
+
+            with patch.dict(os.environ, self.telegram_environment, clear=False), patch(
+                "aipf.notifications.urlopen", side_effect=KeyboardInterrupt,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    main(["--directory", directory, "telegram", "wait"])
+            self.assertEqual(telegram_state_snapshot(store), snapshot)

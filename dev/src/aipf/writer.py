@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from aipf.models import Kind, ProjectState, TaskStatus
+from aipf.runtime import set_active_task_ids
 from aipf.store import ProjectStore, utc_now
 from aipf.validation import validate_evidence, validate_plan, validate_task
 
@@ -97,9 +98,9 @@ def apply_plan(store: ProjectStore, runtime: dict[str, Any], spec: dict[str, Any
         "goal": plan["goal"],
         "state": ProjectState.AWAITING_PLAN_CONFIRMATION.value,
         "active_plan_id": plan_id,
-        "active_task_id": None,
         "updated_at": utc_now(),
     })
+    set_active_task_ids(runtime, [])
     store.write(store.runtime_path, runtime)
     return plan_id, task_ids
 

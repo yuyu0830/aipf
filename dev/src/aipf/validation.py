@@ -184,6 +184,18 @@ def validate_runtime(document: dict[str, Any]) -> None:
     _require(document, ("schema_version", "goal", "state", "active_plan_id", "active_task_id", "updated_at"), "runtime")
     if document["state"] not in set(ProjectState):
         raise ValueError("invalid project state")
+    active_task_ids = document.get("active_task_ids")
+    if active_task_ids is not None:
+        if not isinstance(active_task_ids, list) or not all(
+            isinstance(task_id, str) and re.fullmatch(r"T_[0-9]{3}", task_id)
+            for task_id in active_task_ids
+        ):
+            raise ValueError("runtime active_task_ids must be a list of task ids")
+        if len(active_task_ids) != len(set(active_task_ids)):
+            raise ValueError("runtime active_task_ids must be unique")
+        legacy_active = document["active_task_id"]
+        if legacy_active is not None and legacy_active not in active_task_ids:
+            raise ValueError("runtime active_task_id must be included in active_task_ids")
 
 
 def validate_config(document: dict[str, Any]) -> None:
@@ -192,7 +204,10 @@ def validate_config(document: dict[str, Any]) -> None:
     if not isinstance(notifications, dict):
         raise ValueError("notifications must be a mapping")
     events = _strings(notifications.get("events"), "notifications.events")
-    supported = {"task_completed", "plan_completed", "blocked", "never"}
+    supported = {
+        "plan_review_required", "task_review_required",
+        "task_completed", "plan_completed", "blocked", "never",
+    }
     if not set(events) <= supported or ("never" in events and len(events) != 1):
         raise ValueError("invalid notification events")
     timeout = notifications.get("timeout_seconds")
