@@ -6,11 +6,12 @@ from enum import StrEnum
 class Kind(StrEnum):
     PLAN = "plan"
     TASK = "task"
+    EVIDENCE = "evidence"
     AUDIT = "audit"
 
     @property
     def prefix(self) -> str:
-        return {self.PLAN: "P", self.TASK: "T", self.AUDIT: "A"}[self]
+        return {self.PLAN: "P", self.TASK: "T", self.EVIDENCE: "E", self.AUDIT: "A"}[self]
 
 
 class TaskStatus(StrEnum):

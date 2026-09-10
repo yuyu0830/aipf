@@ -17,6 +17,17 @@ Read `dev/PROJECT_DIRECTION.md` before framework work. Inspect only source and t
 - Regenerate `example/` through the CLI. Do not treat it as implementation source.
 - Never store secrets in project files. Use environment variables for Telegram credentials.
 
+## File layout changes
+
+- Treat a file or directory layout change as incomplete until its ownership, access rules, generation location, and path references are synchronized.
+- Update `dev/PROJECT_DIRECTION.md`, every affected template including `AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, and `PROJECT_SPEC.md`, path-dependent source code, and tests in the same change.
+- Run the relevant `dev/` tests before regenerating and verifying `example/` through the CLI.
+
 ## Scope control
 
 Do not add orchestration, multi-agent review, model routing, persistent sessions, automatic planning, or concurrency systems unless the user requests them.
+
+## Subagent invocation
+
+- Every subagent spawned for this repository must use model `gpt-5.6-luna` with reasoning effort `xhigh`.
+- Set both `model` and `reasoning_effort` explicitly on every subagent invocation, including invocations made by a subagent.

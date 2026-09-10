@@ -1,4 +1,6 @@
 import tempfile
+import subprocess
+import re
 import unittest
 from contextlib import redirect_stdout
 from io import BytesIO, StringIO
@@ -14,10 +16,27 @@ from aipf.notifications import NotificationResult, send_telegram
 from aipf.store import ProjectStore
 
 
+def git(root: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ("git", *arguments), cwd=root, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+def initialize_git(root: Path) -> None:
+    git(root, "init", "-q")
+    git(root, "config", "user.name", "AIPF Test")
+    git(root, "config", "user.email", "aipf@example.invalid")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "initial state")
+
+
 def plan_spec() -> dict:
     return {
         "plan": {
             "goal": "Create a report",
+            "roadmap_stage": "1. Create the report",
+            "approach": ["Write the report from the requirements"],
+            "risks": ["Requirements may be incomplete"],
             "scope": {"includes": ["report"], "excludes": []},
             "acceptance_criteria": ["The report exists"],
         },
@@ -39,6 +58,25 @@ def write_project_spec(root: Path) -> None:
     )
 
 
+def flow_section(root: Path) -> tuple[str, str, str]:
+    """Return the generated flow body and its surrounding marker lines."""
+    content = (root / "PROJECT_FLOW.md").read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+    begin = next(
+        index for index, line in enumerate(lines)
+        if "AIPF" in line.upper() and ("START" in line.upper() or "BEGIN" in line.upper())
+    )
+    end = next(
+        index for index, line in enumerate(lines[begin + 1:], begin + 1)
+        if "AIPF" in line.upper() and "END" in line.upper()
+    )
+    return "".join(lines[begin + 1:end]), lines[begin], lines[end]
+
+
+def flow_ids(body: str) -> set[str]:
+    return set(re.findall(r"\b[APCET]_\d{3}(?:-C_\d{3})?\b", body))
+
+
 def prepare_submitted_task(directory: str) -> ProjectStore:
     root = Path(directory)
     main(["--directory", directory, "init", "--goal", "Review project"])
@@ -52,7 +90,8 @@ def prepare_submitted_task(directory: str) -> ProjectStore:
     (root / "src" / "report.md").write_text("# Report\n", encoding="utf-8")
     main([
         "--directory", directory, "task", "submit", "--target", "T_000",
-        "--summary", "Report written", "--evidence", "reviewed", "--output", "src/report.md",
+        "--summary", "Report written", "--change", "Wrote src/report.md",
+        "--evidence", "reviewed", "--output", "src/report.md",
     ])
     return ProjectStore(root)
 
@@ -62,9 +101,138 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Test project"]), 0)
             root = Path(directory)
-            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "inputs/PROJECT_SPEC.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits"):
+            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "PROJECT_FLOW.md", "inputs/PROJECT_SPEC.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits", ".aipf/evidence"):
                 self.assertTrue((root / path).exists(), path)
+            for object_directory in ("plans", "tasks", "audits", "evidence"):
+                self.assertTrue((root / ".aipf" / object_directory / ".gitkeep").is_file(), object_directory)
             self.assertEqual(main(["--directory", directory, "validate"]), 0)
+
+    def test_project_flow_initial_graph_is_deterministic_and_excludes_task_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Flow test"]), 0)
+            flow = root / "PROJECT_FLOW.md"
+            self.assertTrue(flow.is_file())
+            initial = flow.read_text(encoding="utf-8")
+            body, begin_marker, end_marker = flow_section(root)
+
+            self.assertIn("flowchart", body)
+            self.assertRegex(body, r"(?i)(current|status|awaiting_plan)")
+            self.assertEqual(flow_ids(body) & {"T_000", "E_000"}, set())
+            self.assertNotRegex(body, r"\b(?:T|E)_\d{3}\b")
+            self.assertTrue(begin_marker.strip())
+            self.assertTrue(end_marker.strip())
+
+            self.assertEqual(main(["--directory", directory, "status"]), 0)
+            self.assertEqual(flow.read_text(encoding="utf-8"), initial)
+
+    def test_project_flow_contains_plan_checkpoint_audit_and_preserves_manual_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_submitted_task(directory)
+            flow = root / "PROJECT_FLOW.md"
+            original = flow.read_text(encoding="utf-8")
+            _, begin_marker, end_marker = flow_section(root)
+            begin_offset = original.index(begin_marker)
+            end_offset = original.index(end_marker, begin_offset)
+            prefix = original[:begin_offset]
+            suffix = original[end_offset + len(end_marker):]
+            flow.write_text(
+                prefix + "<!-- user notes before generated graph -->\n" + begin_marker
+                + original[begin_offset + len(begin_marker):end_offset] + end_marker
+                + "<!-- user legend after generated graph -->\n" + suffix,
+                encoding="utf-8",
+            )
+
+            self.assertEqual(main([
+                "--directory", directory, "review", "approve", "--target", "T_000",
+                "--audit-summary", "Accepted the report scope for the project",
+            ]), 0)
+            body, _, _ = flow_section(root)
+            self.assertIn("P_000", body)
+            self.assertIn("A_000", body)
+            self.assertIn("Accepted the report scope for the project", body)
+            self.assertNotRegex(body, r"\b(?:T|E)_\d{3}\b")
+            refreshed = flow.read_text(encoding="utf-8")
+            self.assertIn("<!-- user notes before generated graph -->", refreshed)
+            self.assertIn("<!-- user legend after generated graph -->", refreshed)
+            self.assertTrue(refreshed.startswith(prefix + "<!-- user notes before generated graph -->\n"))
+            self.assertTrue(refreshed.endswith("<!-- user legend after generated graph -->\n" + suffix))
+
+            initialize_git(root)
+            (root / "src" / "report.md").write_text("checkpoint graph\n", encoding="utf-8")
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "create", "--plan", "P_000",
+                "--task", "T_000", "--path", "src/report.md",
+            ]), 0)
+            body, _, _ = flow_section(root)
+            self.assertIn("P_000-C_001", body)
+            self.assertNotRegex(body, r"\b(?:T|E)_\d{3}\b")
+
+    def test_project_flow_rejects_damaged_markers_without_overwriting_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Marker test"]), 0)
+            flow = root / "PROJECT_FLOW.md"
+            content = flow.read_text(encoding="utf-8")
+            _, _, end_marker = flow_section(root)
+            damaged = content.replace(end_marker, "", 1)
+            flow.write_text(damaged, encoding="utf-8")
+
+            error = StringIO()
+            with redirect_stdout(StringIO()), patch("sys.stderr", error):
+                self.assertEqual(main(["--directory", directory, "status"]), 2)
+            self.assertIn("marker", error.getvalue().lower())
+            self.assertEqual(flow.read_text(encoding="utf-8"), damaged)
+
+    def test_checkpoint_and_restore_commits_include_flow_and_restore_audit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            initialize_git(root)
+            report = root / "src" / "report.md"
+            report.write_text("flow checkpoint one\n", encoding="utf-8")
+            create = [
+                "--directory", directory, "checkpoint", "create", "--plan", "P_000",
+                "--task", "T_000", "--path", "src/report.md",
+            ]
+            self.assertEqual(main(create), 0)
+            first_commit = git(root, "rev-parse", "HEAD")
+            first_changed = set(git(root, "show", "--format=", "--name-only", first_commit).splitlines())
+            self.assertIn("PROJECT_FLOW.md", first_changed)
+
+            flow = root / "PROJECT_FLOW.md"
+            flow.write_text(flow.read_text(encoding="utf-8") + "\nUser legend retained across restore.\n", encoding="utf-8")
+            report.write_text("flow checkpoint two\n", encoding="utf-8")
+            self.assertEqual(main(create), 0)
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "restore", "--target", "P_000-C_001",
+                "--reason", "Restore the first flow checkpoint",
+            ]), 0)
+            restore_changed = set(git(root, "show", "--format=", "--name-only", "HEAD").splitlines())
+            self.assertIn("PROJECT_FLOW.md", restore_changed)
+            self.assertIn(".aipf/audits/A_000.yaml", restore_changed)
+            body, _, _ = flow_section(root)
+            self.assertIn("P_000-C_001", body)
+            self.assertIn("A_000", body)
+            self.assertIn("Restore the first flow checkpoint", body)
+            self.assertNotRegex(body, r"\b(?:T|E)_\d{3}\b")
+            self.assertIn("User legend retained across restore.", flow.read_text(encoding="utf-8"))
+            self.assertEqual(list(store.objects(Kind.AUDIT))[-1]["event"], "checkpoint_restored")
+
+    def test_init_generates_file_placement_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Layout test"]), 0)
+            root = Path(directory)
+            self.assertIn("Store implementation outputs under `src/`.", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn(
+                "AI-generated implementation and project deliverables belong under `src/`.",
+                (root / "MEMORY_MAP.md").read_text(encoding="utf-8"),
+            )
+            self.assertIn("## 파일 생성 위치 규약", (root / "README.md").read_text(encoding="utf-8"))
+            self.assertIn("Create declared outputs under `src/`.", (root / "SKILLS.md").read_text(encoding="utf-8"))
+            self.assertIn("- 경로: `inputs/docs/`", (root / "inputs" / "PROJECT_SPEC.md").read_text(encoding="utf-8"))
 
     def test_plan_apply_requires_project_spec_roadmap(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -77,6 +245,151 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
             write_project_spec(root)
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 0)
+
+    def test_plan_apply_records_required_context_and_prints_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Report test"]), 0)
+            write_project_spec(root)
+            plan_path = root / "plan.yaml"
+            plan_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
+
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 0)
+
+            plan = ProjectStore(root).read_object(Kind.PLAN, "P_000")
+            self.assertEqual(plan["roadmap_stage"], "1. Create the report")
+            self.assertEqual(plan["approach"], ["Write the report from the requirements"])
+            self.assertEqual(plan["risks"], ["Requirements may be incomplete"])
+            self.assertIsNone(plan["prior_plan_id"])
+            self.assertEqual(plan["checkpoints"], [])
+            report = output.getvalue()
+            self.assertIn("Plan P_000 승인 전 보고", report)
+            self.assertIn("Roadmap 단계: 1. Create the report", report)
+            self.assertIn("수행 방법:", report)
+            self.assertIn("위험 및 주의점:", report)
+            self.assertIn("완료 조건:", report)
+
+    def test_plan_apply_rejects_missing_required_report_fields(self):
+        for field in ("roadmap_stage", "approach", "risks"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.assertEqual(main(["--directory", directory, "init", "--goal", "Plan validation"]), 0)
+                write_project_spec(root)
+                invalid = plan_spec()
+                invalid["plan"].pop(field)
+                plan_path = root / "plan.yaml"
+                plan_path.write_text(yaml.safe_dump(invalid, sort_keys=False), encoding="utf-8")
+                self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
+
+    def test_validate_checks_plan_checkpoint_structure(self):
+        valid_checkpoint = {
+            "id": "P_000-C_001",
+            "task_ids": ["T_000"],
+        }
+        invalid_checkpoints = (
+            "not-a-list",
+            [{"id": "C_001", "task_ids": ["T_000"]}],
+            [{"id": "P_000-C_001", "task_ids": ["not-a-task-id"]}],
+            [{"id": "P_000-C_001", "task_ids": "T_000"}],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_submitted_task(directory)
+            plan = store.read_object(Kind.PLAN, "P_000")
+            plan["checkpoints"] = [valid_checkpoint]
+            store.write(store.path(Kind.PLAN, "P_000"), plan)
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+
+        for invalid in invalid_checkpoints:
+            with self.subTest(checkpoints=invalid), tempfile.TemporaryDirectory() as directory:
+                store = prepare_submitted_task(directory)
+                plan = store.read_object(Kind.PLAN, "P_000")
+                plan["checkpoints"] = invalid
+                store.write(store.path(Kind.PLAN, "P_000"), plan)
+                self.assertEqual(main(["--directory", directory, "validate"]), 1)
+
+    def test_checkpoint_commits_execution_and_indexes_multiple_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            initialize_git(root)
+            (root / "src" / "report.md").write_text("# Revised report\n", encoding="utf-8")
+
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "create",
+                "--plan", "P_000", "--task", "T_000", "--path", "src/report.md",
+            ]), 0)
+
+            plan = store.read_object(Kind.PLAN, "P_000")
+            self.assertEqual(plan["checkpoints"], [{"id": "P_000-C_001", "task_ids": ["T_000"]}])
+            self.assertEqual(git(root, "log", "-1", "--format=%s"), "aipf(P_000-C_001): checkpoint T_000")
+            self.assertEqual(git(root, "status", "--porcelain"), "")
+            changed = set(git(root, "show", "--format=", "--name-only", "HEAD").splitlines())
+            self.assertIn(".aipf/plans/P_000.yaml", changed)
+            self.assertIn("src/report.md", changed)
+
+    def test_checkpoint_rejects_unaccounted_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prepare_submitted_task(directory)
+            initialize_git(root)
+            (root / "unexpected.txt").write_text("not part of the execution\n", encoding="utf-8")
+
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "create",
+                "--plan", "P_000", "--task", "T_000",
+            ]), 2)
+            self.assertEqual(ProjectStore(root).read_object(Kind.PLAN, "P_000")["checkpoints"], [])
+            self.assertNotIn("P_000-C_001", git(root, "log", "--format=%s"))
+
+    def test_checkpoint_restore_preserves_history_and_creates_audit_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            initialize_git(root)
+            report = root / "src" / "report.md"
+            report.write_text("checkpoint one\n", encoding="utf-8")
+            create = [
+                "--directory", directory, "checkpoint", "create",
+                "--plan", "P_000", "--task", "T_000", "--path", "src/report.md",
+            ]
+            self.assertEqual(main(create), 0)
+            first_commit = git(root, "rev-parse", "HEAD")
+            report.write_text("checkpoint two\n", encoding="utf-8")
+            self.assertEqual(main(create), 0)
+            second_commit = git(root, "rev-parse", "HEAD")
+
+            local_change = root / "local-note.txt"
+            local_change.write_text("preserve me\n", encoding="utf-8")
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "restore",
+                "--target", "P_000-C_001", "--reason", "Must not overwrite local work",
+            ]), 2)
+            self.assertTrue(local_change.exists())
+            self.assertEqual(len(list(store.objects(Kind.AUDIT))), 0)
+            local_change.unlink()
+
+            self.assertEqual(main([
+                "--directory", directory, "checkpoint", "restore",
+                "--target", "P_000-C_001", "--reason", "Second execution was incorrect",
+            ]), 0)
+
+            self.assertEqual(report.read_text(encoding="utf-8"), "checkpoint one\n")
+            self.assertEqual(git(root, "merge-base", "--is-ancestor", first_commit, "HEAD"), "")
+            self.assertEqual(git(root, "merge-base", "--is-ancestor", second_commit, "HEAD"), "")
+            self.assertEqual(git(root, "log", "-1", "--format=%s"), "aipf(P_000-C_001): restore checkpoint")
+            plan = store.read_object(Kind.PLAN, "P_000")
+            self.assertEqual([item["id"] for item in plan["checkpoints"]], ["P_000-C_001", "P_000-C_002"])
+            audit = list(store.objects(Kind.AUDIT))[-1]
+            self.assertEqual(audit["event"], "checkpoint_restored")
+            self.assertEqual(audit["target"], "P_000-C_001")
+            self.assertEqual(audit["summary"], "Second execution was incorrect")
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+            self.assertEqual(git(root, "status", "--porcelain"), "")
 
     def test_plan_task_review_lifecycle(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -93,14 +406,40 @@ class CoreLifecycleTests(unittest.TestCase):
             (root / "src" / "report.md").write_text("# Report\n", encoding="utf-8")
             self.assertEqual(main([
                 "--directory", directory, "task", "submit", "--target", "T_000",
-                "--summary", "Report written", "--evidence", "reviewed", "--output", "src/report.md",
+                "--summary", "Report written", "--change", "Wrote src/report.md",
+                "--evidence", "reviewed", "--output", "src/report.md",
             ]), 0)
             with patch("aipf.cli.notify", return_value=NotificationResult("failed", "network")):
                 self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
             store = ProjectStore(root)
-            self.assertEqual(store.read(store.runtime_path)["state"], "completed")
+            self.assertEqual(store.read(store.runtime_path)["state"], "awaiting_plan")
             self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "completed")
-            self.assertEqual(len(store.paths(Kind.AUDIT)), 2)
+            self.assertEqual(len(store.paths(Kind.AUDIT)), 0)
+
+    def test_completed_plan_waits_for_new_session_and_new_plan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            runtime = store.read(store.runtime_path)
+            self.assertEqual(runtime["state"], "awaiting_plan")
+            self.assertEqual(runtime["active_plan_id"], "P_000")
+
+            next_path = Path(directory) / "next.yaml"
+            next_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(next_path)]), 0)
+            self.assertEqual(store.read(store.runtime_path)["active_plan_id"], "P_001")
+            self.assertEqual(store.read_object(Kind.PLAN, "P_000")["status"], "completed")
+            self.assertEqual(store.read_object(Kind.PLAN, "P_001")["prior_plan_id"], "P_000")
+
+    def test_project_completion_requires_user_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "project", "complete"]), 2)
+            self.assertEqual(main(["--directory", directory, "review", "approve", "--target", "T_000"]), 0)
+            self.assertEqual(main(["--directory", directory, "project", "complete"]), 0)
+            self.assertEqual(store.read(store.runtime_path)["state"], "completed")
+            self.assertEqual(len(store.paths(Kind.AUDIT)), 1)
+            self.assertEqual(list(store.objects(Kind.AUDIT))[-1]["event"], "project_completed")
 
     def test_user_can_revise_retry_or_cancel(self):
         expected = {"revise": "ready", "retry": "ready", "cancel": "cancelled"}
@@ -113,9 +452,24 @@ class CoreLifecycleTests(unittest.TestCase):
                 self.assertEqual(main(arguments), 0)
                 task = store.read_object(Kind.TASK, "T_000")
                 self.assertEqual(task["status"], state)
-                self.assertEqual(list(store.objects(Kind.AUDIT))[-1]["decision"], decision)
+                self.assertEqual(len(store.paths(Kind.AUDIT)), 0)
                 if decision == "revise":
                     self.assertEqual(task["feedback"], "Add more detail")
+
+    def test_review_creates_audit_only_when_summary_is_requested(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_submitted_task(directory)
+            self.assertEqual(len(store.paths(Kind.AUDIT)), 0)
+            self.assertEqual(main([
+                "--directory", directory, "review", "approve", "--target", "T_000",
+                "--audit-summary", "Accepted the submitted report as the project result",
+            ]), 0)
+            audits = list(store.objects(Kind.AUDIT))
+            self.assertEqual(len(audits), 1)
+            self.assertEqual(audits[0]["event"], "user_review")
+            self.assertEqual(audits[0]["target"], "T_000")
+            self.assertEqual(audits[0]["summary"], "Accepted the submitted report as the project result")
+            self.assertEqual(audits[0]["decision"], "approve")
 
     def test_telegram_transport_is_optional_and_failure_safe(self):
         self.assertEqual(send_telegram("test", environ={}).status, "skipped")
@@ -172,20 +526,94 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertEqual(runtime["active_task_id"], "T_005")
             self.assertEqual(store.read_object(Kind.TASK, "T_000")["status"], "pending")
 
-    def test_submit_requires_evidence_and_warns_for_omitted_outputs(self):
+    def test_submit_requires_change_and_evidence_then_records_detailed_report(self):
         with tempfile.TemporaryDirectory() as directory:
             store = prepare_submitted_task(directory)
             task = store.read_object(Kind.TASK, "T_000")
             task["status"] = "running"
             store.write(store.path(Kind.TASK, "T_000"), task)
 
+            without_change = [
+                "--directory", directory, "task", "submit", "--target", "T_000", "--summary", "Draft result",
+                "--evidence", "Manual verification completed",
+            ]
+            self.assertEqual(main(without_change), 2)
+
             without_evidence = [
                 "--directory", directory, "task", "submit", "--target", "T_000", "--summary", "Draft result",
+                "--change", "Drafted the report",
             ]
             self.assertEqual(main(without_evidence), 2)
 
             output = StringIO()
             with redirect_stdout(output):
-                result = main(without_evidence + ["--evidence", "Manual verification completed"])
+                result = main(without_evidence + [
+                    "--evidence", "Manual verification completed",
+                    "--remaining", "Editorial review is still pending",
+                    "--decision-needed", "Confirm the report tone",
+                ])
             self.assertEqual(result, 0)
             self.assertIn("warning: declared outputs not submitted", output.getvalue())
+            self.assertIn("Task T_000 완료 보고", output.getvalue())
+            self.assertIn("실제 수행:", output.getvalue())
+            self.assertIn("미완료 및 알려진 문제:", output.getvalue())
+            self.assertIn("사용자 결정 필요:", output.getvalue())
+
+            task = store.read_object(Kind.TASK, "T_000")
+            self.assertNotIn("result", task)
+            self.assertEqual(task["evidence_ids"], ["E_000", "E_001"])
+            self.assertEqual(task["remaining"], ["Editorial review is still pending"])
+            self.assertEqual(task["decisions"], ["Confirm the report tone"])
+            evidence = store.read_object(Kind.EVIDENCE, "E_001")
+            self.assertEqual(evidence["kind"], "evidence")
+            self.assertEqual(evidence["plan_id"], "P_000")
+            self.assertEqual(evidence["task_id"], "T_000")
+            self.assertEqual(evidence["attempt"], 2)
+            self.assertEqual(evidence["summary"], "Draft result")
+            self.assertEqual(evidence["changes"], ["Drafted the report"])
+            self.assertEqual(evidence["verification"], ["Manual verification completed"])
+            self.assertEqual(evidence["outputs"], [])
+            self.assertEqual(evidence["remaining"], ["Editorial review is still pending"])
+            self.assertEqual(evidence["decisions"], ["Confirm the report tone"])
+            project = (Path(directory) / "PROJECT.md").read_text(encoding="utf-8")
+            self.assertIn("E_001", project)
+            self.assertIn("Draft result", project)
+            self.assertIn("Editorial review is still pending", project)
+            self.assertIn("Confirm the report tone", project)
+
+    def test_task_resubmission_creates_new_evidence_and_preserves_history(self):
+        for decision in ("revise", "retry"):
+            with self.subTest(decision=decision), tempfile.TemporaryDirectory() as directory:
+                store = prepare_submitted_task(directory)
+                first = store.read_object(Kind.EVIDENCE, "E_000")
+                arguments = ["--directory", directory, "review", decision, "--target", "T_000"]
+                if decision == "revise":
+                    arguments.extend(["--feedback", "Add more detail"])
+                self.assertEqual(main(arguments), 0)
+                self.assertEqual(main(["--directory", directory, "run"]), 0)
+                self.assertEqual(main([
+                    "--directory", directory, "task", "submit", "--target", "T_000",
+                    "--summary", "Report revised", "--change", "Expanded src/report.md",
+                    "--evidence", "Second verification completed", "--output", "src/report.md",
+                ]), 0)
+
+                task = store.read_object(Kind.TASK, "T_000")
+                self.assertEqual(task["evidence_ids"], ["E_000", "E_001"])
+                second = store.read_object(Kind.EVIDENCE, "E_001")
+                self.assertEqual(second["attempt"], 2)
+                self.assertEqual(second["summary"], "Report revised")
+                self.assertEqual(second["verification"], ["Second verification completed"])
+                self.assertEqual(store.read_object(Kind.EVIDENCE, "E_000"), first)
+                project = (Path(directory) / "PROJECT.md").read_text(encoding="utf-8")
+                self.assertIn("E_001", project)
+                self.assertIn("Report revised", project)
+
+    def test_validate_checks_evidence_objects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = prepare_submitted_task(directory)
+            self.assertEqual(main(["--directory", directory, "validate"]), 0)
+            store.path(Kind.EVIDENCE, "E_000").write_text(
+                "id: E_000\nkind: evidence\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(main(["--directory", directory, "validate"]), 1)

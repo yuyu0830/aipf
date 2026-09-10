@@ -18,7 +18,12 @@ def utc_now() -> str:
 
 
 class ProjectStore:
-    DIRECTORIES = {Kind.PLAN: "plans", Kind.TASK: "tasks", Kind.AUDIT: "audits"}
+    DIRECTORIES = {
+        Kind.PLAN: "plans",
+        Kind.TASK: "tasks",
+        Kind.EVIDENCE: "evidence",
+        Kind.AUDIT: "audits",
+    }
 
     def __init__(self, root: Path):
         self.root = root.resolve()
@@ -26,7 +31,9 @@ class ProjectStore:
 
     def initialize(self) -> None:
         for name in (*self.DIRECTORIES.values(),):
-            (self.control / name).mkdir(parents=True, exist_ok=True)
+            directory = self.control / name
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / ".gitkeep").touch(exist_ok=True)
         for name in ("inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src"):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 
@@ -64,6 +71,9 @@ class ProjectStore:
 
     def write(self, path: Path, document: dict[str, Any]) -> None:
         resolved = resolve_inside(self.root, path)
+        evidence_directory = self.directory(Kind.EVIDENCE).resolve()
+        if resolved.parent == evidence_directory and resolved.exists():
+            raise FileExistsError(f"evidence is append-only: {resolved.name}")
         resolved.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{resolved.name}.", dir=resolved.parent)
         try:
@@ -78,6 +88,15 @@ class ProjectStore:
             except FileNotFoundError:
                 pass
             raise
+
+    def append_evidence(self, document: dict[str, Any]) -> str:
+        """Persist one immutable Evidence document and return its identifier."""
+        from aipf.validation import validate_evidence
+
+        validate_evidence(document)
+        evidence_id = document["id"]
+        self.write(self.path(Kind.EVIDENCE, evidence_id), document)
+        return evidence_id
 
     def append_audit(self, event: str, target: str, summary: str, *, decision: str | None = None) -> str:
         audit_id = self.next_id(Kind.AUDIT)

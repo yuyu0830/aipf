@@ -52,23 +52,72 @@ def validate_project_spec(path: Path) -> None:
 
 
 def validate_plan(document: dict[str, Any]) -> None:
-    _require(document, ("id", "kind", "goal", "scope", "acceptance_criteria", "task_ids", "status", "revision"), "plan")
-    if document["kind"] != Kind.PLAN.value or not str(document["id"]).startswith("P_"):
+    _require(
+        document,
+        (
+            "id", "kind", "goal", "roadmap_stage", "prior_plan_id", "approach", "risks",
+            "scope", "acceptance_criteria", "task_ids", "checkpoints", "status",
+        ),
+        "plan",
+    )
+    plan_id = document["id"]
+    if document["kind"] != Kind.PLAN.value or not re.fullmatch(r"P_[0-9]{3}", str(plan_id)):
         raise ValueError("invalid plan identity")
     if not isinstance(document["goal"], str) or not document["goal"].strip():
         raise ValueError("plan goal must not be empty")
+    if not isinstance(document["roadmap_stage"], str) or not document["roadmap_stage"].strip():
+        raise ValueError("plan roadmap_stage must not be empty")
+    prior_plan_id = document["prior_plan_id"]
+    if prior_plan_id is not None and (not isinstance(prior_plan_id, str) or not prior_plan_id.startswith("P_")):
+        raise ValueError("plan prior_plan_id must be a plan id or null")
+    _strings(document["approach"], "approach", nonempty=True)
+    if not document["approach"]:
+        raise ValueError("plan approach must not be empty")
+    _strings(document["risks"], "risks", nonempty=True)
     if not isinstance(document["scope"], dict):
         raise ValueError("plan scope must be a mapping")
     _strings(document["scope"].get("includes"), "scope.includes")
     _strings(document["scope"].get("excludes"), "scope.excludes")
     _strings(document["acceptance_criteria"], "acceptance_criteria", nonempty=True)
-    _strings(document["task_ids"], "task_ids")
+    task_ids = _strings(document["task_ids"], "task_ids")
+    if any(not re.fullmatch(r"T_[0-9]{3}", task_id) for task_id in task_ids):
+        raise ValueError("task_ids must contain only task ids")
+    if len(task_ids) != len(set(task_ids)):
+        raise ValueError("plan task_ids must be unique")
+    checkpoints = document["checkpoints"]
+    if not isinstance(checkpoints, list):
+        raise ValueError("checkpoints must be a list")
+    expected_checkpoint = 1
+    for checkpoint in checkpoints:
+        if not isinstance(checkpoint, dict):
+            raise ValueError("each checkpoint must be a mapping")
+        _require(checkpoint, ("id", "task_ids"), "checkpoint")
+        checkpoint_id = checkpoint["id"]
+        expected_id = f"{plan_id}-C_{expected_checkpoint:03d}"
+        if checkpoint_id != expected_id:
+            raise ValueError("checkpoint ids must match the plan and remain sequential")
+        checkpoint_task_ids = _strings(checkpoint["task_ids"], "checkpoint.task_ids", nonempty=True)
+        if len(checkpoint_task_ids) != len(set(checkpoint_task_ids)):
+            raise ValueError("checkpoint task_ids must be unique")
+        if any(task_id not in task_ids for task_id in checkpoint_task_ids):
+            raise ValueError("checkpoint task_ids must refer to tasks in the plan")
+        expected_checkpoint += 1
     if document["status"] not in {"proposed", "approved", "completed", "cancelled"}:
         raise ValueError("invalid plan status")
 
 
 def validate_task(document: dict[str, Any]) -> None:
-    _require(document, ("id", "kind", "plan_id", "goal", "references", "outputs", "constraints", "acceptance_criteria", "verification", "status", "result", "revision"), "task")
+    _require(
+        document,
+        (
+            "id", "kind", "plan_id", "goal", "references", "outputs", "constraints",
+            "acceptance_criteria", "verification", "status", "remaining", "decisions",
+            "evidence_ids",
+        ),
+        "task",
+    )
+    if "result" in document:
+        raise ValueError("task result must be stored as Evidence")
     if document["kind"] != Kind.TASK.value or not str(document["id"]).startswith("T_"):
         raise ValueError("invalid task identity")
     if not isinstance(document["goal"], str) or not document["goal"].strip():
@@ -84,11 +133,41 @@ def validate_task(document: dict[str, Any]) -> None:
     _strings(verification.get("evidence"), "verification.evidence")
     if document["status"] not in set(TaskStatus):
         raise ValueError("invalid task status")
-    result = document["result"]
-    if not isinstance(result, dict):
-        raise ValueError("result must be a mapping")
-    _strings(result.get("evidence"), "result.evidence")
-    _strings(result.get("outputs"), "result.outputs")
+    _strings(document["remaining"], "remaining", nonempty=True)
+    _strings(document["decisions"], "decisions", nonempty=True)
+    evidence_ids = _strings(document["evidence_ids"], "evidence_ids")
+    if any(not re.fullmatch(r"E_[0-9]{3}", value) for value in evidence_ids):
+        raise ValueError("evidence_ids must contain only evidence ids")
+    if document["status"] in {TaskStatus.AWAITING_REVIEW, TaskStatus.COMPLETED} and not evidence_ids:
+        raise ValueError("submitted task requires at least one Evidence id")
+
+
+def validate_evidence(document: dict[str, Any]) -> None:
+    _require(
+        document,
+        (
+            "id", "kind", "plan_id", "task_id", "attempt", "timestamp",
+            "summary", "changes", "outputs", "verification", "remaining", "decisions",
+        ),
+        "evidence",
+    )
+    if document["kind"] != Kind.EVIDENCE.value or not re.fullmatch(r"E_[0-9]{3}", str(document["id"])):
+        raise ValueError("invalid evidence identity")
+    if not isinstance(document["plan_id"], str) or not re.fullmatch(r"P_[0-9]{3}", document["plan_id"]):
+        raise ValueError("evidence plan_id must be a plan id")
+    if not isinstance(document["task_id"], str) or not re.fullmatch(r"T_[0-9]{3}", document["task_id"]):
+        raise ValueError("evidence task_id must be a task id")
+    for field in ("attempt",):
+        if not isinstance(document[field], int) or isinstance(document[field], bool) or document[field] < 1:
+            raise ValueError(f"evidence {field} must be a positive integer")
+    for field in ("timestamp", "summary"):
+        if not isinstance(document[field], str) or not document[field].strip():
+            raise ValueError(f"evidence {field} must be a non-empty string")
+    _strings(document["changes"], "evidence.changes", nonempty=True)
+    _strings(document["outputs"], "evidence.outputs", nonempty=True)
+    _strings(document["verification"], "evidence.verification", nonempty=True)
+    _strings(document["remaining"], "evidence.remaining", nonempty=True)
+    _strings(document["decisions"], "evidence.decisions", nonempty=True)
 
 
 def validate_audit(document: dict[str, Any]) -> None:
@@ -122,7 +201,12 @@ def validate_config(document: dict[str, Any]) -> None:
 
 
 def validate_store(store) -> list[tuple[str, str]]:
-    validators = {Kind.PLAN: validate_plan, Kind.TASK: validate_task, Kind.AUDIT: validate_audit}
+    validators = {
+        Kind.PLAN: validate_plan,
+        Kind.TASK: validate_task,
+        Kind.EVIDENCE: validate_evidence,
+        Kind.AUDIT: validate_audit,
+    }
     errors: list[tuple[str, str]] = []
     for kind, validator in validators.items():
         for path in store.paths(kind):
