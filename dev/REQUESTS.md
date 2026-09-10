@@ -160,6 +160,12 @@
 - 관련 항목: R-007, R-010
 - 결정 및 진행 기록: 프로젝트별 코드 규범은 AIPF가 정하지 않고 사용자가 선택적으로 `guidance/CODE_CONVENTIONS.md`에 작성한다. `inputs/`는 프로젝트 원본만 보관하고, `guidance/`에는 `PROJECT_SPEC.md`와 사용자 설정을 둔다. Plan 세션은 `guidance/PROJECT_SPEC.md`를 읽고, 코드 작성·수정·리뷰 Task만 `guidance/CODE_CONVENTIONS.md`를 읽어 사용자 규범을 적용한다. 규범이 비어 있으면 AI가 새 공통 규칙을 만들지 않고 대상 코드의 기존 관례를 따르며, 관례가 없어 결과에 중요한 영향을 주면 R-012에 따라 질문한다. 초기화 시 두 guidance 템플릿을 생성하고 관련 문서·경로·검증을 동기화한다.
 
+### 최근 결정: 사용자 노출 영역과 내부 운영 파일 분리
+
+- 상태: 완료
+- 사용자 원문: `example/` 최상위에는 사용자가 봐야 할 것들만 남기고 나머지는 `.aipf/` 등에 숨긴다. `inputs/`와 `config` 영역을 나누고 설정 폴더 이름은 변경 가능하며, `guidance/`를 사용한다.
+- 결정 및 진행 기록: 생성 프로젝트의 최상위에는 최소 `AGENTS.md`, `PROJECT.md`, `README.md`, `inputs/`, `guidance/`, `ref/`, `src/`만 둔다. 루트 `AGENTS.md`는 자동 탐색용 진입점으로 `.aipf/instructions/AGENTS.md`를 읽도록만 안내한다. 상세 `AGENTS.md`, `SKILLS.md`, `MEMORY_MAP.md`는 `.aipf/instructions/`에 생성하고, `PROJECT_FLOW.md`는 `.aipf/PROJECT_FLOW.md`에 생성한다. Plan·Task·Evidence·Audit·runtime·config도 `.aipf/`에 둔다. 기존 루트 운영 파일은 새 생성 결과에 복제하지 않으며, 모든 경로 참조·소유권·생성 위치·checkpoint/restore 동작·테스트를 동기화한다.
+
 ## 앞으로 할 일
 
 - [x] 요청사항을 기록한다.
@@ -178,3 +184,4 @@
 - [x] R-011 Telegram 양방향 상호작용 범위를 합의하고 구현 범위를 확정한다.
 - [x] R-012 모호한 요청에 대한 사용자 질의 규칙을 정한다.
 - [x] R-013 코드 가독성과 네이밍 컨벤션 적용 방식을 정한다.
+- [x] 사용자 노출 영역과 `.aipf/` 내부 운영 파일을 분리한다.

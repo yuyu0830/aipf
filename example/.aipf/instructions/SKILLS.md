@@ -37,7 +37,7 @@ Restore only from a clean working tree and only by a recorded checkpoint ID. A r
 
 ## Project flow projection
 
-`PROJECT_FLOW.md` is a read-only projection of Plans, checkpoints, material Audits, and the current runtime position. It intentionally excludes Task and Evidence detail. The AIPF CLI refreshes only the generated region between its markers; preserve content outside the markers and never edit the generated region directly. Use normal CLI state-changing commands or `status` to refresh the projection.
+`.aipf/PROJECT_FLOW.md` is a read-only projection of Plans, checkpoints, material Audits, and the current runtime position. It intentionally excludes Task and Evidence detail. The AIPF CLI refreshes only the generated region between its markers; preserve content outside the markers and never edit the generated region directly. Use normal CLI state-changing commands or `status` to refresh the projection.
 
 ## Reference source
 

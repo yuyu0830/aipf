@@ -85,7 +85,7 @@ def create_checkpoint(
         ".aipf/audits",
         ".aipf/runtime.yaml",
         "PROJECT.md",
-        "PROJECT_FLOW.md",
+        ".aipf/PROJECT_FLOW.md",
     }
     for task_id in task_ids:
         task = store.read_object(Kind.TASK, task_id)
@@ -166,7 +166,7 @@ def restore_checkpoint(store: ProjectStore, checkpoint_id: str, reason: str) -> 
     checkpoint_history = [item.copy() for item in current_plan["checkpoints"]]
     evidence_history = list(store.objects(Kind.EVIDENCE))
     audit_history = list(store.objects(Kind.AUDIT))
-    flow_path = root / "PROJECT_FLOW.md"
+    flow_path = root / ".aipf/PROJECT_FLOW.md"
     current_flow = flow_path.read_text(encoding="utf-8") if flow_path.exists() else None
 
     _git(root, "restore", "--source", commit, "--staged", "--worktree", "--", ".")

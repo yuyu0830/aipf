@@ -20,7 +20,7 @@ next plan session or explicit user-confirmed project completion
 ## Product focus
 
 - A Korean `PROJECT.md` that clearly shows current status and the next action.
-- A read-only `PROJECT_FLOW.md` that gives a compact view of Plans, checkpoints, material Audits, and current runtime state.
+- A read-only `.aipf/PROJECT_FLOW.md` that gives a compact view of Plans, checkpoints, material Audits, and current runtime state.
 - Human-readable Plan, Task, Evidence, and Audit objects.
 - A file layout that reveals how the project operates.
 - Direct references to user documents and external source originals.
@@ -43,7 +43,7 @@ next plan session or explicit user-confirmed project completion
 - A checkpoint commit includes the Plan index, affected management objects, and declared execution outputs. Unowned changes stop checkpoint creation.
 - Restoring a checkpoint recreates that checkpoint's state in a new commit, preserves Git history and append-only records, and records the reason in an Audit.
 - Routine state transitions are not Audits; the Plan agent records only material project decisions that future work needs.
-- `PROJECT_FLOW.md` is a derived, read-only projection rather than a source of truth. It excludes Task and Evidence detail and is refreshed by the CLI after state changes.
+- `.aipf/PROJECT_FLOW.md` is a derived, read-only projection rather than a source of truth. It excludes Task and Evidence detail and is refreshed by the CLI after state changes.
 - The CLI owns only the generated region between the flow markers; it preserves any content outside those markers and agents do not edit the generated region directly.
 - A completed Plan session does not create the next Plan; a new session continues from persisted state.
 - Only the Plan agent may create Task agents. Task agents must not create other Task agents. Every subagent invocation explicitly uses `gpt-5.6-luna` with `xhigh` reasoning.
@@ -60,9 +60,9 @@ next plan session or explicit user-confirmed project completion
 - `aipf telegram wait` is a one-shot long-polling command for an active review. Its default total wait is 600 seconds. A timeout exits without changing Plan, Task, or project state.
 - `PROJECT.md` is the user-facing source for Telegram transmission conditions. Plan and Task agents read its `전송 조건` line before sending; the user may change that comma-separated line by direct edit or request without changing code.
 - Telegram credentials are read only from environment variables. Webhooks, an always-on daemon, and free-form Telegram conversation are outside the framework scope.
-- File placement is a generation convention: follow the canonical layout and `MEMORY_MAP.md`; when a suitable location is unclear, ask before inventing a new directory.
+- File placement is a generation convention: follow the canonical layout and `.aipf/instructions/MEMORY_MAP.md`; when a suitable location is unclear, ask before inventing a new directory.
 - `inputs/` contains only user-provided project originals. `guidance/` contains user-owned project direction and optional code conventions; AI writes it only on explicit request. Plan sessions read `guidance/PROJECT_SPEC.md`, and code Tasks read `guidance/CODE_CONVENTIONS.md`; other Tasks do not read the code conventions file.
-- A file-layout change is complete only when the canonical layout, all path-bearing templates (`AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, `guidance/PROJECT_SPEC.md`, and `guidance/CODE_CONVENTIONS.md`), affected code and tests, and the CLI-generated `example/` are synchronized in the same change.
+- A file-layout change is complete only when the canonical layout, all path-bearing templates (root `AGENTS.md`, `.aipf/instructions/AGENTS.md`, `.aipf/instructions/MEMORY_MAP.md`, `README.md`, `.aipf/instructions/SKILLS.md`, `guidance/PROJECT_SPEC.md`, and `guidance/CODE_CONVENTIONS.md`), affected code and tests, and the CLI-generated `example/` are synchronized in the same change.
 - Add new mechanisms only after project use demonstrates a need.
 - Prefer direct, inspectable state over hidden orchestration.
 
@@ -71,10 +71,7 @@ next plan session or explicit user-confirmed project completion
 ```text
 project-root/
 |-- AGENTS.md
-|-- SKILLS.md
 |-- PROJECT.md
-|-- PROJECT_FLOW.md
-|-- MEMORY_MAP.md
 |-- inputs/
 |   |-- docs/
 |   |-- codes/
@@ -86,6 +83,11 @@ project-root/
 |-- ref/
 |-- src/
 `-- .aipf/
+    |-- instructions/
+    |   |-- AGENTS.md
+    |   |-- SKILLS.md
+    |   `-- MEMORY_MAP.md
+    |-- PROJECT_FLOW.md
     |-- plans/P_000.yaml
     |-- tasks/T_000.yaml
     |-- evidence/E_000.yaml
@@ -94,7 +96,7 @@ project-root/
     `-- config.yaml
 ```
 
-See `MEMORY_MAP.md` for ownership and access rules. Changes to this layout must update the related guidance, implementation, tests, and generated example together.
+See `.aipf/instructions/MEMORY_MAP.md` for ownership and access rules. Changes to this layout must update the related guidance, implementation, tests, and generated example together.
 
 ## Future direction
 

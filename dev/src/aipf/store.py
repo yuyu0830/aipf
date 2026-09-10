@@ -30,6 +30,7 @@ class ProjectStore:
         self.control = self.root / ".aipf"
 
     def initialize(self) -> None:
+        (self.control / "instructions").mkdir(parents=True, exist_ok=True)
         for name in (*self.DIRECTORIES.values(),):
             directory = self.control / name
             directory.mkdir(parents=True, exist_ok=True)

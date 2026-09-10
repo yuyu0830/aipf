@@ -84,7 +84,7 @@ def write_project_spec(root: Path) -> None:
 
 def flow_section(root: Path) -> tuple[str, str, str]:
     """Return the generated flow body and its surrounding marker lines."""
-    content = (root / "PROJECT_FLOW.md").read_text(encoding="utf-8")
+    content = (root / ".aipf" / "PROJECT_FLOW.md").read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
     begin = next(
         index for index, line in enumerate(lines)
@@ -160,7 +160,7 @@ def telegram_state_snapshot(store: ProjectStore) -> dict[str, bytes]:
     paths = [
         store.runtime_path,
         store.root / "PROJECT.md",
-        store.root / "PROJECT_FLOW.md",
+        store.root / ".aipf" / "PROJECT_FLOW.md",
         *store.paths(Kind.PLAN),
         *store.paths(Kind.TASK),
         *store.paths(Kind.EVIDENCE),
@@ -210,8 +210,14 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Test project"]), 0)
             root = Path(directory)
-            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "PROJECT_FLOW.md", "guidance/PROJECT_SPEC.md", "guidance/CODE_CONVENTIONS.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits", ".aipf/evidence"):
+            for path in ("AGENTS.md", "README.md", "PROJECT.md", "guidance/PROJECT_SPEC.md", "guidance/CODE_CONVENTIONS.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/instructions/AGENTS.md", ".aipf/instructions/SKILLS.md", ".aipf/instructions/MEMORY_MAP.md", ".aipf/PROJECT_FLOW.md", ".aipf/plans", ".aipf/tasks", ".aipf/audits", ".aipf/evidence"):
                 self.assertTrue((root / path).exists(), path)
+            self.assertEqual(
+                {path.name for path in root.iterdir()},
+                {".aipf", "AGENTS.md", "PROJECT.md", "README.md", "guidance", "inputs", "ref", "src"},
+            )
+            for path in ("SKILLS.md", "MEMORY_MAP.md", "PROJECT_FLOW.md"):
+                self.assertFalse((root / path).exists(), path)
             self.assertFalse((root / "inputs" / "PROJECT_SPEC.md").exists())
             for object_directory in ("plans", "tasks", "audits", "evidence"):
                 self.assertTrue((root / ".aipf" / object_directory / ".gitkeep").is_file(), object_directory)
@@ -281,7 +287,7 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Flow test"]), 0)
-            flow = root / "PROJECT_FLOW.md"
+            flow = root / ".aipf" / "PROJECT_FLOW.md"
             self.assertTrue(flow.is_file())
             initial = flow.read_text(encoding="utf-8")
             body, begin_marker, end_marker = flow_section(root)
@@ -300,7 +306,7 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             store = prepare_submitted_task(directory)
-            flow = root / "PROJECT_FLOW.md"
+            flow = root / ".aipf" / "PROJECT_FLOW.md"
             original = flow.read_text(encoding="utf-8")
             _, begin_marker, end_marker = flow_section(root)
             begin_offset = original.index(begin_marker)
@@ -343,7 +349,7 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Marker test"]), 0)
-            flow = root / "PROJECT_FLOW.md"
+            flow = root / ".aipf" / "PROJECT_FLOW.md"
             content = flow.read_text(encoding="utf-8")
             _, _, end_marker = flow_section(root)
             damaged = content.replace(end_marker, "", 1)
@@ -370,9 +376,9 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertEqual(main(create), 0)
             first_commit = git(root, "rev-parse", "HEAD")
             first_changed = set(git(root, "show", "--format=", "--name-only", first_commit).splitlines())
-            self.assertIn("PROJECT_FLOW.md", first_changed)
+            self.assertIn(".aipf/PROJECT_FLOW.md", first_changed)
 
-            flow = root / "PROJECT_FLOW.md"
+            flow = root / ".aipf" / "PROJECT_FLOW.md"
             flow.write_text(flow.read_text(encoding="utf-8") + "\nUser legend retained across restore.\n", encoding="utf-8")
             report.write_text("flow checkpoint two\n", encoding="utf-8")
             self.assertEqual(main(create), 0)
@@ -381,7 +387,7 @@ class CoreLifecycleTests(unittest.TestCase):
                 "--reason", "Restore the first flow checkpoint",
             ]), 0)
             restore_changed = set(git(root, "show", "--format=", "--name-only", "HEAD").splitlines())
-            self.assertIn("PROJECT_FLOW.md", restore_changed)
+            self.assertIn(".aipf/PROJECT_FLOW.md", restore_changed)
             self.assertIn(".aipf/audits/A_000.yaml", restore_changed)
             body, _, _ = flow_section(root)
             self.assertIn("P_000-C_001", body)
@@ -395,17 +401,17 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Layout test"]), 0)
             root = Path(directory)
-            self.assertIn("Store implementation outputs under `src/`.", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn(".aipf/instructions/AGENTS.md", (root / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertIn(
                 "AI-generated implementation and project deliverables belong under `src/`.",
-                (root / "MEMORY_MAP.md").read_text(encoding="utf-8"),
+                (root / ".aipf" / "instructions" / "MEMORY_MAP.md").read_text(encoding="utf-8"),
             )
             self.assertIn("## 파일 생성 위치 규약", (root / "README.md").read_text(encoding="utf-8"))
-            skills = (root / "SKILLS.md").read_text(encoding="utf-8")
+            skills = (root / ".aipf" / "instructions" / "SKILLS.md").read_text(encoding="utf-8")
             self.assertIn("Create only declared outputs under `src/`", skills)
             self.assertIn("Do not modify management objects or create Evidence", skills)
             self.assertIn("Routine accepted results need no user review or Audit", skills)
-            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            agents = (root / ".aipf" / "instructions" / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("The Plan agent verifies each returned result", agents)
             self.assertRegex(agents, r"(?i)(routine result|routine acceptance)")
             self.assertRegex(agents, r"(?i)user review.*(needed|required|exception)")
@@ -418,7 +424,7 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Ambiguity test"]), 0)
             root = Path(directory)
-            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            agents = (root / ".aipf" / "instructions" / "AGENTS.md").read_text(encoding="utf-8")
             ambiguity = agents.split("## Ambiguity\n", 1)[1].split("## File layout changes\n", 1)[0]
             self.assertIn("materially change the goal, scope, outputs, acceptance criteria", ambiguity)
             self.assertIn("state material assumptions", ambiguity)
@@ -433,7 +439,7 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertIn("질문 없이 진행할 수 있는 예", readme)
             self.assertIn("다시 승인받는다", readme)
 
-            skills = (root / "SKILLS.md").read_text(encoding="utf-8")
+            skills = (root / ".aipf" / "instructions" / "SKILLS.md").read_text(encoding="utf-8")
             self.assertIn("Resolve material ambiguity before execution", skills)
             self.assertIn("revise and obtain approval again", skills)
 

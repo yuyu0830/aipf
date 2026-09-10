@@ -2,7 +2,7 @@
 
 AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하고, Plan 에이전트가 Task 결과를 검증하며, 필요한 경우에만 사용자 검토를 거쳐 진행하는 최소 프레임워크다.
 
-버전: `0.2.1`
+버전: `0.2.2`
 
 ## 핵심 원칙
 
@@ -14,7 +14,7 @@ AIPF는 사용자와 AI가 합의한 프로젝트 계획을 파일로 저장하�
 - Plan 승인 전에는 선택한 단계와 수행 방식을 보고한다. Task 결과는 먼저 Plan 에이전트가 검토하고, 예외가 있을 때만 실제 결과와 검증 근거를 사용자에게 검토 요청한다.
 - 모든 Task 결과가 수용된 뒤 Plan 완료는 사용자가 최종 확인한다.
 - 프로젝트 상태와 생성물은 사람이 직접 읽을 수 있는 파일로 관리한다.
-- `PROJECT_FLOW.md`는 Plan 실행 흐름을 빠르게 파악하기 위한 읽기 전용 투영이다. Task와 Evidence는 표시하지 않는다.
+- `.aipf/PROJECT_FLOW.md`는 Plan 실행 흐름을 빠르게 파악하기 위한 읽기 전용 투영이다. Task와 Evidence는 표시하지 않는다.
 
 ## 진행 흐름
 
@@ -49,10 +49,8 @@ AIPF는 AI 모델을 직접 선택하거나 호출하지 않는다. Codex, Claud
 ```text
 project-root/
 ├── AGENTS.md
-├── SKILLS.md
 ├── PROJECT.md
-├── PROJECT_FLOW.md
-├── MEMORY_MAP.md
+├── README.md
 ├── inputs/
 │   ├── docs/
 │   ├── codes/
@@ -64,6 +62,11 @@ project-root/
 ├── ref/
 ├── src/
 └── .aipf/
+    ├── instructions/
+    │   ├── AGENTS.md
+    │   ├── SKILLS.md
+    │   └── MEMORY_MAP.md
+    ├── PROJECT_FLOW.md
     ├── plans/P_000.yaml
     ├── tasks/T_000.yaml
     ├── evidence/E_000.yaml
@@ -75,10 +78,8 @@ project-root/
 각 파일과 디렉터리의 역할:
 
 - `PROJECT.md`: 사용자가 읽는 한국어 현재 상태와 다음 행동
-- `PROJECT_FLOW.md`: Plan, checkpoint, 중요한 Audit, runtime 위치를 보여 주는 CLI 생성 읽기 전용 흐름 투영
-- `AGENTS.md`: AI가 항상 따라야 하는 행동 규칙
-- `SKILLS.md`: 프로젝트에서 반복 사용하는 작업 절차
-- `MEMORY_MAP.md`: 파일 위치, 목적, 사용자·AI 접근 권한
+- `README.md`: 사용자를 위한 프로젝트 구조와 AIPF 사용 안내
+- `AGENTS.md`: 상세 지침을 가리키는 AI 자동 탐색용 진입점
 - `inputs/docs/`: 사용자가 제공한 문서
 - `inputs/codes/`: 사용자가 제공한 소스 코드
 - `inputs/data/`: 사용자가 제공한 정형 데이터
@@ -87,23 +88,27 @@ project-root/
 - `guidance/CODE_CONVENTIONS.md`: 사용자가 작성하는 선택형 코드 작성 규범
 - `ref/`: AI가 관리하는 외부 원본과 출처 metadata
 - `src/`: AI가 만드는 프로젝트 구현물과 생성물
+- `.aipf/instructions/AGENTS.md`: AI가 따라야 하는 상세 행동 규칙
+- `.aipf/instructions/SKILLS.md`: 프로젝트에서 반복 사용하는 작업 절차
+- `.aipf/instructions/MEMORY_MAP.md`: 파일 위치, 목적, 사용자·AI 접근 권한
+- `.aipf/PROJECT_FLOW.md`: Plan, checkpoint, 중요한 Audit, runtime 위치를 보여 주는 CLI 생성 읽기 전용 흐름 투영
 - `.aipf/`: Plan, Task, Evidence, Audit와 현재 실행 상태
 
-`PROJECT_FLOW.md`는 관리 객체의 원본이 아니다. Plan, checkpoint, material Audit, runtime만 요약하며 Task와 Evidence 상세는 의도적으로 제외한다. AIPF CLI가 마커 사이의 생성 영역을 갱신하고 마커 밖의 안내와 범례는 보존한다. 사용자와 AI는 생성 영역을 직접 수정하지 않는다.
+`.aipf/PROJECT_FLOW.md`는 관리 객체의 원본이 아니다. Plan, checkpoint, material Audit, runtime만 요약하며 Task와 Evidence 상세는 의도적으로 제외한다. AIPF CLI가 마커 사이의 생성 영역을 갱신하고 마커 밖의 안내와 범례는 보존한다. 사용자와 AI는 생성 영역을 직접 수정하지 않는다.
 
 ## 파일 생성 위치 규약
 
-파일을 만들거나 수정하기 전에는 `MEMORY_MAP.md`와 활성 Task의 `outputs`를 먼저 확인한다. Task 실행 전에 예상 산출물의 경로를 선언하며, 적절한 위치가 명확하지 않으면 새 경로나 디렉터리를 만들기 전에 사용자에게 확인한다.
+파일을 만들거나 수정하기 전에는 `.aipf/instructions/MEMORY_MAP.md`와 활성 Task의 `outputs`를 먼저 확인한다. Task 실행 전에 예상 산출물의 경로를 선언하며, 적절한 위치가 명확하지 않으면 새 경로나 디렉터리를 만들기 전에 사용자에게 확인한다.
 
 - 사용자가 제공한 프로젝트 원본은 `inputs/`에 둔다. AI는 기본적으로 읽기만 한다.
 - 프로젝트 진행 기준과 사용자 설정은 `guidance/`에 둔다. AI는 기본적으로 읽기만 한다.
 - 외부에서 가져온 원본은 `ref/`에 두며, 기존 원본을 덮어쓰지 않는다.
 - AI가 생성하는 구현물과 프로젝트 산출물은 `src/`에 둔다.
 - Plan·Task·Evidence·Audit·실행 상태와 설정은 `.aipf/`의 전용 위치에 둔다.
-- `PROJECT_FLOW.md`는 프로젝트 루트에 두며 CLI를 통해서만 갱신한다. 이 파일은 읽기 전용 투영이고 관리 객체가 원본이다.
+- `.aipf/PROJECT_FLOW.md`는 CLI를 통해서만 갱신한다. 이 파일은 읽기 전용 투영이고 관리 객체가 원본이다.
 - 임시 파일은 작업 완료 후 삭제하고, 루트에 임의의 파일이나 디렉터리를 남기지 않는다. 루트에는 canonical layout에 정의된 관리 문서와 디렉터리만 둔다.
 
-파일 배치를 추가·삭제·이동할 때는 같은 작업에서 `AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, `PROJECT_FLOW.md` 생성 규칙, `guidance/PROJECT_SPEC.md`, `guidance/CODE_CONVENTIONS.md`, 영향을 받는 Plan·Task·Evidence·Audit 경로, 관련 코드와 테스트를 함께 갱신한다. 변경된 배치와 안내가 일치하는지 검증해야 변경이 완료된다.
+파일 배치를 추가·삭제·이동할 때는 같은 작업에서 루트 `AGENTS.md`, `.aipf/instructions/AGENTS.md`, `.aipf/instructions/MEMORY_MAP.md`, `README.md`, `.aipf/instructions/SKILLS.md`, `.aipf/PROJECT_FLOW.md` 생성 규칙, `guidance/PROJECT_SPEC.md`, `guidance/CODE_CONVENTIONS.md`, 영향을 받는 Plan·Task·Evidence·Audit 경로, 관련 코드와 테스트를 함께 갱신한다. 변경된 배치와 안내가 일치하는지 검증해야 변경이 완료된다.
 
 `inputs/`와 `guidance/`는 사용자 전용 수정 영역이다. AI는 기본적으로 읽기만 한다. AI는 사용자가 명시적으로 요청할 때만 `guidance/PROJECT_SPEC.md` 또는 `guidance/CODE_CONVENTIONS.md`를 수정할 수 있다. 프로젝트 명세서는 `guidance/PROJECT_SPEC.md` 하나만 둔다. `guidance/CODE_CONVENTIONS.md`는 선택 사항이며 사용자가 프로젝트별 코드 규범을 작성한다. `ref/`의 외부 원본은 덮어쓰지 않고 새 버전을 별도 파일로 저장한다. AI가 만든 결과는 `src/`에 둔다.
 
@@ -111,7 +116,7 @@ project-root/
 
 ## 모호한 요청과 사용자 질의
 
-AI는 실행 전에 관련된 `PROJECT.md`, `MEMORY_MAP.md`, `guidance/PROJECT_SPEC.md`, 활성 Plan·Task와 참조 파일을 확인한다. 코드 작성·수정·리뷰 Task인 경우에만 `guidance/CODE_CONVENTIONS.md`도 확인한다. 확인한 자료만으로도 결정할 수 없는 내용이 아래 결과를 바꿀 수 있으면 사용자에게 먼저 질문한다.
+AI는 실행 전에 관련된 `PROJECT.md`, `.aipf/instructions/MEMORY_MAP.md`, `guidance/PROJECT_SPEC.md`, 활성 Plan·Task와 참조 파일을 확인한다. 코드 작성·수정·리뷰 Task인 경우에만 `guidance/CODE_CONVENTIONS.md`도 확인한다. 확인한 자료만으로도 결정할 수 없는 내용이 아래 결과를 바꿀 수 있으면 사용자에게 먼저 질문한다.
 
 - 프로젝트 목표나 완료 기준
 - Plan·Task의 포함·제외 범위, 산출물 경로·소유권, 제약 또는 검증 방법
@@ -138,14 +143,14 @@ AI는 실행 전에 관련된 `PROJECT.md`, `MEMORY_MAP.md`, `guidance/PROJECT_S
 
 ## Project flow projection
 
-`PROJECT_FLOW.md`는 다음 원본을 사람이 빠르게 읽을 수 있도록 투영한다.
+`.aipf/PROJECT_FLOW.md`는 다음 원본을 사람이 빠르게 읽을 수 있도록 투영한다.
 
 - Plan과 Plan 사이의 흐름
 - Plan에 연결된 checkpoint
 - 장기 보존이 필요한 material Audit
-- 현재 `runtime.yaml` 위치와 상태
+- 현재 `.aipf/runtime.yaml` 위치와 상태
 
-Task와 Evidence는 흐름 문서의 크기를 제한하기 위해 표시하지 않는다. `.aipf/` 관리 객체가 원본이며, `PROJECT_FLOW.md`를 수정해 상태를 바꾸지 않는다. CLI는 파일의 생성 마커 안쪽만 갱신하고 마커 바깥의 사용자 안내·범례는 보존한다. 상태를 갱신할 때는 직접 편집하지 말고 AIPF 명령을 사용한다.
+Task와 Evidence는 흐름 문서의 크기를 제한하기 위해 표시하지 않는다. `.aipf/` 관리 객체가 원본이며, `.aipf/PROJECT_FLOW.md`를 수정해 상태를 바꾸지 않는다. CLI는 파일의 생성 마커 안쪽만 갱신하고 마커 바깥의 사용자 안내·범례는 보존한다. 상태를 갱신할 때는 직접 편집하지 말고 AIPF 명령을 사용한다.
 
 ## 관리 객체
 
@@ -314,7 +319,7 @@ Plan 에이전트는 활성 Plan에서 실행 가능한 미완료 Task를 선택
 
 ## 5. AI 작업과 결과 제출
 
-AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`와 `guidance/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다. 코드 작성·수정·리뷰 Task에서는 `guidance/CODE_CONVENTIONS.md`의 사용자 규범을 적용한다.
+AI는 루트 `AGENTS.md`를 통해 `.aipf/instructions/AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`와 `guidance/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다. 코드 작성·수정·리뷰 Task에서는 `guidance/CODE_CONVENTIONS.md`의 사용자 규범을 적용한다.
 
 작업 후 검증 명령을 실행하고 결과를 제출한다.
 
@@ -404,7 +409,7 @@ aipf --directory /path/to/project checkpoint create \
   --path src/additional-output.md
 ```
 
-Git 저장소에는 먼저 기준 commit이 있어야 한다. 선택 Task의 선언된 outputs, 관련 Plan·Task·Evidence·Audit, runtime, `PROJECT.md`, `PROJECT_FLOW.md`가 Plan의 checkpoint 색인과 같은 commit에 기록된다. `--path`는 선언된 outputs 밖에서 이번 실행이 소유한 경로에만 사용한다.
+Git 저장소에는 먼저 기준 commit이 있어야 한다. 선택 Task의 선언된 outputs, 관련 Plan·Task·Evidence·Audit, runtime, `PROJECT.md`, `.aipf/PROJECT_FLOW.md`가 Plan의 checkpoint 색인과 같은 commit에 기록된다. `--path`는 선언된 outputs 밖에서 이번 실행이 소유한 경로에만 사용한다.
 
 확인된 checkpoint 상태로 돌아갈 때는 깨끗한 working tree에서 복원 사유를 함께 지정한다.
 
@@ -438,7 +443,7 @@ aipf --directory /path/to/project status
 aipf --directory /path/to/project validate
 ```
 
-`status`는 `PROJECT.md`와 `PROJECT_FLOW.md`를 현재 상태로 다시 생성한다. 사용자가 수정한 Telegram 전송 조건과 flow 마커 밖의 내용은 보존한다.
+`status`는 `PROJECT.md`와 `.aipf/PROJECT_FLOW.md`를 현재 상태로 다시 생성한다. 사용자가 수정한 Telegram 전송 조건과 flow 마커 밖의 내용은 보존한다.
 
 ## 외부 자료 관리
 
@@ -517,7 +522,7 @@ aipf --directory /path/to/project telegram wait
 
 ## 현재 범위
 
-버전 `0.2.1`은 다음 기능을 의도적으로 포함하지 않는다.
+버전 `0.2.2`는 다음 기능을 의도적으로 포함하지 않는다.
 
 - 목표의 자동 Task 분해
 - AI 모델 자동 선택과 직접 API 호출

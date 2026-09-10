@@ -10,7 +10,7 @@ from aipf.runtime import active_task_ids
 from aipf.store import ProjectStore
 
 
-FLOW_FILENAME = "PROJECT_FLOW.md"
+FLOW_FILENAME = ".aipf/PROJECT_FLOW.md"
 FLOW_START = "<!-- AIPF:FLOW START -->"
 FLOW_END = "<!-- AIPF:FLOW END -->"
 
@@ -376,7 +376,7 @@ def write_project_flow(store: ProjectStore, runtime: dict[str, Any]) -> None:
     else:
         content = _new_flow_document(graph)
 
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{FLOW_FILENAME}.", dir=store.root)
+    descriptor, temporary = tempfile.mkstemp(prefix=".PROJECT_FLOW.md.", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             stream.write(content)
