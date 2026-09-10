@@ -76,7 +76,7 @@ def parallel_plan_spec() -> dict:
 
 
 def write_project_spec(root: Path) -> None:
-    (root / "inputs" / "PROJECT_SPEC.md").write_text(
+    (root / "guidance" / "PROJECT_SPEC.md").write_text(
         "# Project specification\n\n## 7. 진행 계획\n\n1. Create the report\n",
         encoding="utf-8",
     )
@@ -210,8 +210,9 @@ class CoreLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(main(["--directory", directory, "init", "--goal", "Test project"]), 0)
             root = Path(directory)
-            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "PROJECT_FLOW.md", "inputs/PROJECT_SPEC.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits", ".aipf/evidence"):
+            for path in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md", "PROJECT.md", "PROJECT_FLOW.md", "guidance/PROJECT_SPEC.md", "guidance/CODE_CONVENTIONS.md", "inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src", ".aipf/plans", ".aipf/tasks", ".aipf/audits", ".aipf/evidence"):
                 self.assertTrue((root / path).exists(), path)
+            self.assertFalse((root / "inputs" / "PROJECT_SPEC.md").exists())
             for object_directory in ("plans", "tasks", "audits", "evidence"):
                 self.assertTrue((root / ".aipf" / object_directory / ".gitkeep").is_file(), object_directory)
             self.assertEqual(main(["--directory", directory, "validate"]), 0)
@@ -408,7 +409,33 @@ class CoreLifecycleTests(unittest.TestCase):
             self.assertIn("The Plan agent verifies each returned result", agents)
             self.assertRegex(agents, r"(?i)(routine result|routine acceptance)")
             self.assertRegex(agents, r"(?i)user review.*(needed|required|exception)")
-            self.assertIn("- 경로: `inputs/docs/`", (root / "inputs" / "PROJECT_SPEC.md").read_text(encoding="utf-8"))
+            self.assertIn("- 경로: `inputs/docs/`", (root / "guidance" / "PROJECT_SPEC.md").read_text(encoding="utf-8"))
+            conventions = (root / "guidance" / "CODE_CONVENTIONS.md").read_text(encoding="utf-8")
+            self.assertIn("## 가독성", conventions)
+            self.assertIn("## 네이밍", conventions)
+
+    def test_init_generates_concise_ambiguity_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(main(["--directory", directory, "init", "--goal", "Ambiguity test"]), 0)
+            root = Path(directory)
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            ambiguity = agents.split("## Ambiguity\n", 1)[1].split("## File layout changes\n", 1)[0]
+            self.assertIn("materially change the goal, scope, outputs, acceptance criteria", ambiguity)
+            self.assertIn("state material assumptions", ambiguity)
+            self.assertIn("revise it and obtain approval again", ambiguity)
+            self.assertLessEqual(len(ambiguity.strip().splitlines()), 5)
+
+            readme = (root / "README.md").read_text(encoding="utf-8")
+            self.assertIn("## 모호한 요청과 사용자 질의", readme)
+            self.assertIn("프로젝트 목표나 완료 기준", readme)
+            self.assertIn("질문할 때는 먼저 관련 자료를 확인", readme)
+            self.assertIn("질문이 필요한 예", readme)
+            self.assertIn("질문 없이 진행할 수 있는 예", readme)
+            self.assertIn("다시 승인받는다", readme)
+
+            skills = (root / "SKILLS.md").read_text(encoding="utf-8")
+            self.assertIn("Resolve material ambiguity before execution", skills)
+            self.assertIn("revise and obtain approval again", skills)
 
     def test_plan_apply_requires_project_spec_roadmap(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -417,7 +444,12 @@ class CoreLifecycleTests(unittest.TestCase):
             plan_path = root / "plan.yaml"
             plan_path.write_text(yaml.safe_dump(plan_spec(), sort_keys=False), encoding="utf-8")
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
-            (root / "inputs" / "PROJECT_SPEC.md").unlink()
+            (root / "guidance" / "PROJECT_SPEC.md").unlink()
+            self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
+            (root / "inputs" / "PROJECT_SPEC.md").write_text(
+                "# Legacy specification\n\n## 7. 진행 계획\n\n1. Legacy stage\n",
+                encoding="utf-8",
+            )
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 2)
             write_project_spec(root)
             self.assertEqual(main(["--directory", directory, "plan", "apply", "--file", str(plan_path)]), 0)

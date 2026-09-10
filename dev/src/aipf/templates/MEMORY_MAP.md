@@ -7,11 +7,12 @@
 | `PROJECT.md` | Korean status and next action | Read/review | Read/write |
 | `PROJECT_FLOW.md` | Read-only projection of Plans, checkpoints, material Audits, and runtime position | Read; write outside markers | Read; refresh generated region through CLI only |
 | `MEMORY_MAP.md` | File and access map | Read/write | Read/write |
-| `inputs/PROJECT_SPEC.md` | Single project-wide specification and roadmap | Read/write | Read; write only on explicit user request |
 | `inputs/docs/` | User-provided documents | Read/write | Read-only |
 | `inputs/codes/` | User-provided source code | Read/write | Read-only |
 | `inputs/data/` | User-provided structured data | Read/write | Read-only |
 | `inputs/media/` | User-provided images, audio, and video | Read/write | Read-only |
+| `guidance/PROJECT_SPEC.md` | Single project-wide specification and roadmap | Read/write | Read; write only on explicit user request |
+| `guidance/CODE_CONVENTIONS.md` | User-defined code-writing conventions | Read/write | Read only for code Tasks; write only on explicit user request |
 | `ref/` | External originals | Read | Manage; originals immutable |
 | `src/` | Project outputs | Read/review | Read/write |
 | `.aipf/plans/` | Plan objects and the central execution checkpoint index | Review | Read/write |
@@ -21,12 +22,12 @@
 | `.aipf/runtime.yaml` | Current execution and review-wait state, including transient parallel `active_task_ids`; never stores Telegram secrets | Read | Read/write |
 | `.aipf/config.yaml` | Notification settings | Read/configure | Policy-limited write |
 
-Load context in this order: `PROJECT.md`, `PROJECT_FLOW.md`, this map, `inputs/PROJECT_SPEC.md`, active Plan, active Task, then Task references. Treat the flow projection as a compact index, not a replacement for source objects.
+Load context in this order: `PROJECT.md`, `PROJECT_FLOW.md`, this map, `guidance/PROJECT_SPEC.md`, active Plan, active Task, then Task references. For code writing, modification, or review Tasks, also read `guidance/CODE_CONVENTIONS.md`. Treat the flow projection as a compact index, not a replacement for source objects.
 
 ## File creation and placement rules
 
 - Read this map before creating or modifying a file, then check the active Task's declared `outputs` and `references`.
-- User-provided originals belong under `inputs/` and are read-only to AI by default. External source originals belong under `ref/` and remain immutable.
+- User-provided project originals belong under `inputs/` and are read-only to AI by default. User-owned project guidance belongs under `guidance/` and is read-only to AI by default. External source originals belong under `ref/` and remain immutable.
 - AI-generated implementation and project deliverables belong under `src/`. Plan, Task, Evidence, Audit, and runtime management objects belong under `.aipf/`.
 - The Plan agent owns management-object updates. Task agents return structured results and do not write Task, Evidence, Audit, Plan, or runtime objects. When independent Tasks run in parallel, their transient IDs are stored in `.aipf/runtime.yaml` under `active_task_ids`; they are removed as each Task result is persisted.
 - `PROJECT_FLOW.md` is generated at the project root by the CLI. Do not edit its generated region directly; user-facing guidance outside the markers may be maintained separately.
@@ -44,4 +45,4 @@ Load context in this order: `PROJECT.md`, `PROJECT_FLOW.md`, this map, `inputs/P
 
 ## Layout synchronization
 
-When a file or directory is added, removed, or relocated, update the related conventions in the same change. This includes `MEMORY_MAP.md`, `AGENTS.md`, `README.md`, `SKILLS.md`, `PROJECT_FLOW.md` generation rules, `inputs/PROJECT_SPEC.md`, affected Plan, Task, Evidence, and Audit paths, and path-dependent code and tests. Verify the updated layout and guidance before considering the change complete.
+When a file or directory is added, removed, or relocated, update the related conventions in the same change. This includes `MEMORY_MAP.md`, `AGENTS.md`, `README.md`, `SKILLS.md`, `PROJECT_FLOW.md` generation rules, `guidance/PROJECT_SPEC.md`, `guidance/CODE_CONVENTIONS.md`, affected Plan, Task, Evidence, and Audit paths, and path-dependent code and tests. Verify the updated layout and guidance before considering the change complete.

@@ -29,7 +29,7 @@ def _safe_paths(values: Any, field: str, roots: set[str]) -> None:
 
 def validate_project_spec(path: Path) -> None:
     if not path.is_file():
-        raise ValueError("project specification not found: inputs/PROJECT_SPEC.md")
+        raise ValueError("project specification not found: guidance/PROJECT_SPEC.md")
     lines = path.read_text(encoding="utf-8").splitlines()
     heading = re.compile(r"^##\s+(?:\d+\.\s*)?진행 계획\s*$")
     start = next((index + 1 for index, line in enumerate(lines) if heading.match(line.strip())), None)

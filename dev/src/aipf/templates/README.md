@@ -54,11 +54,13 @@ project-root/
 ├── PROJECT_FLOW.md
 ├── MEMORY_MAP.md
 ├── inputs/
-│   ├── PROJECT_SPEC.md
 │   ├── docs/
 │   ├── codes/
 │   ├── data/
 │   └── media/
+├── guidance/
+│   ├── PROJECT_SPEC.md
+│   └── CODE_CONVENTIONS.md
 ├── ref/
 ├── src/
 └── .aipf/
@@ -77,11 +79,12 @@ project-root/
 - `AGENTS.md`: AI가 항상 따라야 하는 행동 규칙
 - `SKILLS.md`: 프로젝트에서 반복 사용하는 작업 절차
 - `MEMORY_MAP.md`: 파일 위치, 목적, 사용자·AI 접근 권한
-- `inputs/PROJECT_SPEC.md`: 프로젝트 전체 목표, 명세, 자연어 Roadmap을 담는 단일 기준 문서
 - `inputs/docs/`: 사용자가 제공한 문서
 - `inputs/codes/`: 사용자가 제공한 소스 코드
 - `inputs/data/`: 사용자가 제공한 정형 데이터
 - `inputs/media/`: 사용자가 제공한 이미지, 오디오, 비디오
+- `guidance/PROJECT_SPEC.md`: 프로젝트 전체 목표, 명세, 자연어 Roadmap을 담는 단일 기준 문서
+- `guidance/CODE_CONVENTIONS.md`: 사용자가 작성하는 선택형 코드 작성 규범
 - `ref/`: AI가 관리하는 외부 원본과 출처 metadata
 - `src/`: AI가 만드는 프로젝트 구현물과 생성물
 - `.aipf/`: Plan, Task, Evidence, Audit와 현재 실행 상태
@@ -92,16 +95,46 @@ project-root/
 
 파일을 만들거나 수정하기 전에는 `MEMORY_MAP.md`와 활성 Task의 `outputs`를 먼저 확인한다. Task 실행 전에 예상 산출물의 경로를 선언하며, 적절한 위치가 명확하지 않으면 새 경로나 디렉터리를 만들기 전에 사용자에게 확인한다.
 
-- 사용자가 제공한 원본은 `inputs/`에 둔다. AI는 기본적으로 읽기만 한다.
+- 사용자가 제공한 프로젝트 원본은 `inputs/`에 둔다. AI는 기본적으로 읽기만 한다.
+- 프로젝트 진행 기준과 사용자 설정은 `guidance/`에 둔다. AI는 기본적으로 읽기만 한다.
 - 외부에서 가져온 원본은 `ref/`에 두며, 기존 원본을 덮어쓰지 않는다.
 - AI가 생성하는 구현물과 프로젝트 산출물은 `src/`에 둔다.
 - Plan·Task·Evidence·Audit·실행 상태와 설정은 `.aipf/`의 전용 위치에 둔다.
 - `PROJECT_FLOW.md`는 프로젝트 루트에 두며 CLI를 통해서만 갱신한다. 이 파일은 읽기 전용 투영이고 관리 객체가 원본이다.
 - 임시 파일은 작업 완료 후 삭제하고, 루트에 임의의 파일이나 디렉터리를 남기지 않는다. 루트에는 canonical layout에 정의된 관리 문서와 디렉터리만 둔다.
 
-파일 배치를 추가·삭제·이동할 때는 같은 작업에서 `AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, `PROJECT_FLOW.md` 생성 규칙, `inputs/PROJECT_SPEC.md`, 영향을 받는 Plan·Task·Evidence·Audit 경로, 관련 코드와 테스트를 함께 갱신한다. 변경된 배치와 안내가 일치하는지 검증해야 변경이 완료된다.
+파일 배치를 추가·삭제·이동할 때는 같은 작업에서 `AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, `PROJECT_FLOW.md` 생성 규칙, `guidance/PROJECT_SPEC.md`, `guidance/CODE_CONVENTIONS.md`, 영향을 받는 Plan·Task·Evidence·Audit 경로, 관련 코드와 테스트를 함께 갱신한다. 변경된 배치와 안내가 일치하는지 검증해야 변경이 완료된다.
 
-`inputs/`는 사용자 전용 수정 영역이다. AI는 기본적으로 읽기만 한다. AI는 사용자가 명시적으로 요청할 때만 `inputs/PROJECT_SPEC.md`를 수정할 수 있다. 프로젝트 명세서는 하나만 둔다. `ref/`의 외부 원본은 덮어쓰지 않고 새 버전을 별도 파일로 저장한다. AI가 만든 결과는 `src/`에 둔다.
+`inputs/`와 `guidance/`는 사용자 전용 수정 영역이다. AI는 기본적으로 읽기만 한다. AI는 사용자가 명시적으로 요청할 때만 `guidance/PROJECT_SPEC.md` 또는 `guidance/CODE_CONVENTIONS.md`를 수정할 수 있다. 프로젝트 명세서는 `guidance/PROJECT_SPEC.md` 하나만 둔다. `guidance/CODE_CONVENTIONS.md`는 선택 사항이며 사용자가 프로젝트별 코드 규범을 작성한다. `ref/`의 외부 원본은 덮어쓰지 않고 새 버전을 별도 파일로 저장한다. AI가 만든 결과는 `src/`에 둔다.
+
+코드 작성·수정·리뷰 Task는 작업 전에 `guidance/CODE_CONVENTIONS.md`를 읽고 사용자 규범을 적용한다. 이 파일이 비어 있으면 AI가 프로젝트 전체 규범을 새로 만들지 않고 대상 코드의 기존 관례를 따른다. 코드와 무관한 Task는 이 파일을 읽지 않는다.
+
+## 모호한 요청과 사용자 질의
+
+AI는 실행 전에 관련된 `PROJECT.md`, `MEMORY_MAP.md`, `guidance/PROJECT_SPEC.md`, 활성 Plan·Task와 참조 파일을 확인한다. 코드 작성·수정·리뷰 Task인 경우에만 `guidance/CODE_CONVENTIONS.md`도 확인한다. 확인한 자료만으로도 결정할 수 없는 내용이 아래 결과를 바꿀 수 있으면 사용자에게 먼저 질문한다.
+
+- 프로젝트 목표나 완료 기준
+- Plan·Task의 포함·제외 범위, 산출물 경로·소유권, 제약 또는 검증 방법
+- 비용, 보안·개인정보, 외부 전송, 되돌릴 수 없음과 같은 위험·영향
+- 사용자 요청, 명세서, 승인된 Plan 또는 현재 파일 상태 사이의 충돌
+
+기존 문서와 프로젝트 관례로 뒷받침되고 쉽게 되돌릴 수 있는 구현 세부사항은 합리적으로 정해 계속할 수 있다. 중요한 가정은 Plan 승인 전 보고나 Task 결과에 남긴다.
+
+질문할 때는 먼저 관련 자료를 확인하고, 작업을 막는 결정만 묻는다. 서로 연관된 선택은 묶고 각 선택이 결과에 미치는 차이를 설명한다.
+
+질문이 필요한 예:
+
+- “로그인 기능을 추가해줘”라고 했지만 인증 방식이나 완료 기준이 정해지지 않은 경우
+- 사용하지 않는 데이터를 삭제하라는 요청에서 삭제 범위나 복구 가능성이 불명확한 경우
+- 산출물을 `src/`와 `ref/` 중 어디에 둘지에 따라 소유권과 수정 권한이 달라지는 경우
+
+질문 없이 진행할 수 있는 예:
+
+- 기존 코드의 이름·서식 관례에 맞추는 것처럼 결과의 목표와 범위를 바꾸지 않는 경우
+- 문서와 승인된 Task가 정한 범위 안에서 구현 방법을 선택하는 경우
+- 읽기 전용 조사, 상태 확인, 테스트 실행처럼 외부 상태를 바꾸지 않는 경우
+
+사용자 답변으로 승인된 Plan의 목표, 범위, Task, 산출물, 제약 또는 완료 조건이 바뀌면 Plan을 수정하고 실행 전에 다시 승인받는다. 단순한 구현 세부사항의 결정은 Plan을 다시 승인받을 사유가 아니다.
 
 ## Project flow projection
 
@@ -173,11 +206,11 @@ python3.12 -m venv .venv
 aipf --directory /path/to/project init --goal "프로젝트 목표"
 ```
 
-초기 상태는 `awaiting_plan`이다. 초기 설계 세션에서는 생성된 안내 파일을 확인하고 `inputs/PROJECT_SPEC.md`와 전체 Roadmap을 사용자와 합의한다. 이 세션에서는 개별 Plan을 실행하지 않는다.
+초기 상태는 `awaiting_plan`이다. 초기 설계 세션에서는 생성된 안내 파일을 확인하고 `guidance/PROJECT_SPEC.md`와 전체 Roadmap을 사용자와 합의한다. 이 세션에서는 개별 Plan을 실행하지 않는다.
 
 ## 2. 새 세션에서 Plan 합의
 
-Plan 세션은 Plan 하나를 제안부터 완료까지 담당한다. 먼저 `PROJECT_SPEC.md`의 전체 목표·완료 기준·제약·Roadmap, `PROJECT.md`의 현재 상태, 가장 최근에 완료된 `P_XXX`의 목표·범위·Task 결과를 읽는다. 필요하면 관련 Audit도 확인한다. 첫 Plan 세션에는 이전 Plan이 없다.
+Plan 세션은 Plan 하나를 제안부터 완료까지 담당한다. 먼저 `guidance/PROJECT_SPEC.md`의 전체 목표·완료 기준·제약·Roadmap, `PROJECT.md`의 현재 상태, 가장 최근에 완료된 `P_XXX`의 목표·범위·Task 결과를 읽는다. 필요하면 관련 Audit도 확인한다. 첫 Plan 세션에는 이전 Plan이 없다.
 
 AI는 이전 Plan의 실제 결과를 전제로 자연어 Roadmap에서 다음 단계를 선택해 Plan을 제안한다. 명세와 이전 결과가 충돌하면 임의로 해석하지 않고 사용자에게 알린다. Roadmap 항목 하나가 Plan 하나의 기본 후보다. 사용자가 승인하면 항목을 합치거나 나눌 수 있다. 명세서가 없거나 `진행 계획`에 단계 목록이 없으면 `plan apply`가 실행되지 않는다.
 
@@ -281,7 +314,7 @@ Plan 에이전트는 활성 Plan에서 실행 가능한 미완료 Task를 선택
 
 ## 5. AI 작업과 결과 제출
 
-AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다.
+AI는 `AGENTS.md`와 활성 Task를 읽고 작업한다. `inputs/`와 `guidance/`를 수정하지 않으며, 생성물은 Task에 선언된 `src/` 경로에 저장한다. 코드 작성·수정·리뷰 Task에서는 `guidance/CODE_CONVENTIONS.md`의 사용자 규범을 적용한다.
 
 작업 후 검증 명령을 실행하고 결과를 제출한다.
 

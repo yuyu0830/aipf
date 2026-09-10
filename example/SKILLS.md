@@ -7,6 +7,11 @@ Only the Plan agent creates Task agents. It may perform a small Task directly. D
 ## Plan
 
 Agree on goal, scope, outputs, acceptance criteria, constraints, references, and Task order. Save only after showing the user a final preview. Do not execute before approval. After all Task results have been accepted, request the user's final confirmation before marking the Plan complete.
+Resolve material ambiguity before execution; if clarification changes an approved Plan, revise and obtain approval again.
+
+## Code conventions
+
+For code writing, modification, or review Tasks, read and follow the user's rules in `guidance/CODE_CONVENTIONS.md`; do not invent project-wide code conventions when it is empty.
 
 ## Task
 

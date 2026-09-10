@@ -34,7 +34,15 @@ class ProjectStore:
             directory = self.control / name
             directory.mkdir(parents=True, exist_ok=True)
             (directory / ".gitkeep").touch(exist_ok=True)
-        for name in ("inputs/docs", "inputs/codes", "inputs/data", "inputs/media", "ref", "src"):
+        for name in (
+            "inputs/docs",
+            "inputs/codes",
+            "inputs/data",
+            "inputs/media",
+            "guidance",
+            "ref",
+            "src",
+        ):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 
     def directory(self, kind: Kind) -> Path:

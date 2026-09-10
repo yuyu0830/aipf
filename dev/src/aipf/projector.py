@@ -287,7 +287,7 @@ def render_project(store: ProjectStore, runtime: dict[str, Any]) -> str:
         next_action = "차단 원인 확인 후 사용자 결정"
     elif state == "awaiting_plan" and runtime.get("active_plan_id"):
         next_action = (
-            f"새 세션에서 `inputs/PROJECT_SPEC.md`와 완료된 Plan `{runtime['active_plan_id']}`을 읽고 "
+            f"새 세션에서 `guidance/PROJECT_SPEC.md`와 완료된 Plan `{runtime['active_plan_id']}`을 읽고 "
             "다음 Plan을 합의하거나 프로젝트 완료를 확정"
         )
     else:
