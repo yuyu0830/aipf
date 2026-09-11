@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aipf"
+version = "0.2.1"
+description = "File-based framework for user-controlled AI projects"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "PyYAML>=6.0.2,<7",
+]
+
+[project.scripts]
+aipf = "aipf.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aipf"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
