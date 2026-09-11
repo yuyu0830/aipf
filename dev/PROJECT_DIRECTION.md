@@ -101,3 +101,20 @@ See `.aipf/instructions/MEMORY_MAP.md` for ownership and access rules. Changes t
 ## Future direction
 
 Future plans may add capabilities when a real project requires them. Candidate capabilities include richer recovery, additional providers, or specialized review. They are not part of the core structure by default.
+
+## Distribution workflow
+
+Development stays on `main` under `dev/`, with `example/` serving as the
+CLI-generated integration example. The installable Git checkout is published
+on the `release` branch and contains only:
+
+- `pyproject.toml`
+- `src/aipf/`, including the project templates
+- `README.md`
+- `.gitignore`
+
+The `release` branch is generated from a clean, committed `main` revision by
+`dev/scripts/update_release_branch.sh`; it is not edited directly. The script
+records the source revision in the release commit message. A release is pushed
+only after the `dev/` tests pass and the generated `example/` is current when
+template output changed.
