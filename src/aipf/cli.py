@@ -117,13 +117,24 @@ def print_task_review_report(
 
 def write_guidance_files(root: Path) -> None:
     templates = files("aipf.templates")
-    for name in ("AGENTS.md", "SKILLS.md", "MEMORY_MAP.md", "README.md"):
+    root_templates = {"AGENTS.md": "ROOT_AGENTS.md", "README.md": "README.md"}
+    for name, template_name in root_templates.items():
         target = root / name
         if not target.exists():
+            target.write_text(templates.joinpath(template_name).read_text(encoding="utf-8"), encoding="utf-8")
+    instruction_templates = {
+        "AGENTS.md": "AGENTS.md",
+        "SKILLS.md": "SKILLS.md",
+        "MEMORY_MAP.md": "MEMORY_MAP.md",
+    }
+    for name, template_name in instruction_templates.items():
+        target = root / ".aipf" / "instructions" / name
+        if not target.exists():
+            target.write_text(templates.joinpath(template_name).read_text(encoding="utf-8"), encoding="utf-8")
+    for name in ("PROJECT_SPEC.md", "CODE_CONVENTIONS.md"):
+        target = root / "guidance" / name
+        if not target.exists():
             target.write_text(templates.joinpath(name).read_text(encoding="utf-8"), encoding="utf-8")
-    specification = root / "inputs" / "PROJECT_SPEC.md"
-    if not specification.exists():
-        specification.write_text(templates.joinpath("PROJECT_SPEC.md").read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def command_init(args: argparse.Namespace) -> int:
@@ -154,7 +165,7 @@ def command_init(args: argparse.Namespace) -> int:
 def command_plan_apply(args: argparse.Namespace) -> int:
     store = ProjectStore(project_root(args.directory))
     runtime = read_runtime(store)
-    validate_project_spec(store.root / "inputs" / "PROJECT_SPEC.md")
+    validate_project_spec(store.root / "guidance" / "PROJECT_SPEC.md")
     spec = parse_plan_spec(sys.stdin.read()) if args.file == "-" else load_plan_spec(Path(args.file).resolve())
     plan_id, task_ids = apply_plan(store, runtime, spec)
     refresh(store, runtime)

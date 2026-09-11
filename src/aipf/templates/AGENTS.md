@@ -1,12 +1,12 @@
 # Agent Instructions
 
-Read `PROJECT.md` and `MEMORY_MAP.md` before work, then follow the session rules below.
+Read `PROJECT.md` and `.aipf/instructions/MEMORY_MAP.md` before work, then follow the session rules below.
 
-Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow when you need historical context. The management objects remain the source of truth.
+Use `.aipf/PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow when you need historical context. The management objects remain the source of truth.
 
 ## Session responsibility
 
-- The initial design session defines `inputs/PROJECT_SPEC.md` and its project-wide roadmap. It does not execute a Plan.
+- The initial design session defines `guidance/PROJECT_SPEC.md` and its project-wide roadmap. It does not execute a Plan.
 - A Plan session owns exactly one Plan from proposal through user approval, Task execution, review, and Plan completion.
 - A completed Plan session must not create the next Plan. End the session after recording its result and next action.
 - The next Plan is proposed and performed in a new session.
@@ -17,7 +17,7 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 
 ## Starting a Plan session
 
-1. Read the full project goal, completion criteria, constraints, and roadmap in `inputs/PROJECT_SPEC.md`.
+1. Read the full project goal, completion criteria, constraints, and roadmap in `guidance/PROJECT_SPEC.md`.
 2. Read the current state and next action in `PROJECT.md`.
 3. Read the most recently completed `P_XXX` object, including its goal, scope, status, and Task list. The first Plan session has no previous Plan.
 4. Read that Plan's Tasks, their `remaining` and `decisions`, linked Evidence objects, and relevant Audits when needed to identify incomplete work or user decisions.
@@ -27,11 +27,12 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 8. Save and perform the Plan only after user approval.
 
 - Follow the approved Plan. A Task agent performs one Task; the Plan agent may run independent Tasks in parallel when the declared output paths and dependencies permit it.
-- Treat `inputs/` as user-owned and read-only.
-- Modify `inputs/PROJECT_SPEC.md` only when the user explicitly requests it. Never create another project specification.
+- Treat `inputs/` and `guidance/` as user-owned and read-only unless the user explicitly requests a change.
+- Read `guidance/CODE_CONVENTIONS.md` only for code writing, modification, or review Tasks; follow its user-defined rules.
+- Modify `guidance/PROJECT_SPEC.md` or `guidance/CODE_CONVENTIONS.md` only when the user explicitly requests it. Never create another project specification.
 - Keep originals under `ref/` immutable.
 - Store implementation outputs under `src/`.
-- Before creating or modifying a file, read `MEMORY_MAP.md` and the active Task's declared `outputs` and confirm the file's owner and destination.
+- Before creating or modifying a file, read `.aipf/instructions/MEMORY_MAP.md` and the active Task's declared `outputs` and confirm the file's owner and destination.
 - Declare every expected output path in the Task before execution. Create outputs at those declared paths; if the correct location is unclear, ask the user before creating a new path.
 - Remove temporary files when the Task is complete. Do not leave scratch files or ad hoc directories in the project root.
 - Keep the project root limited to the managed documents and directories in the canonical layout; do not create unrelated root files or directories.
@@ -52,13 +53,19 @@ Use `PROJECT_FLOW.md` as the compact, read-only view of the project's Plan flow 
 - Do not create a checkpoint while unrelated changes or pre-staged files exist. If file ownership is unclear, stop and ask the user.
 - Restore only by checkpoint ID with `aipf checkpoint restore` on a clean working tree. Never use reset, rebase, or force-push for AIPF restoration; the CLI creates a new commit and Audit.
 - Update the affected management objects and `PROJECT.md` after state changes.
-- Treat `PROJECT_FLOW.md` as a read-only projection of Plans, checkpoints, material Audits, and runtime position. It intentionally omits Task and Evidence detail.
-- Never edit the generated region of `PROJECT_FLOW.md` directly. The CLI refreshes only the content between its markers; content outside them may be maintained as user-facing guidance.
+- Treat `.aipf/PROJECT_FLOW.md` as a read-only projection of Plans, checkpoints, material Audits, and runtime position. It intentionally omits Task and Evidence detail.
+- Never edit the generated region of `.aipf/PROJECT_FLOW.md` directly. The CLI refreshes only the content between its markers; content outside them may be maintained as user-facing guidance.
 - Write `PROJECT.md` in Korean and other managed documents in English.
 - Never store secrets in project files.
+
+## Ambiguity
+
+Ask before acting when ambiguity could materially change the goal, scope, outputs, acceptance criteria, risk, cost, reversibility, or external impact.
+Proceed with reversible details supported by project context, and state material assumptions in the Plan report or Task result.
+If clarification changes an approved Plan, revise it and obtain approval again before execution.
 
 ## File layout changes
 
 - A file or directory layout change is incomplete until its ownership, access rules, and generation location are reflected in the related conventions.
-- Update this `AGENTS.md`, `MEMORY_MAP.md`, `README.md`, `SKILLS.md`, `inputs/PROJECT_SPEC.md`, affected Plan, Task, Evidence, and Audit paths, and any path-dependent implementation and tests in the same change.
+- Update this `AGENTS.md`, `.aipf/instructions/MEMORY_MAP.md`, `README.md`, `.aipf/instructions/SKILLS.md`, `guidance/PROJECT_SPEC.md`, `guidance/CODE_CONVENTIONS.md`, affected Plan, Task, Evidence, and Audit paths, and any path-dependent implementation and tests in the same change.
 - Verify the updated layout and guidance before considering the change complete.

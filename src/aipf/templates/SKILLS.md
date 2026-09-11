@@ -7,6 +7,11 @@ Only the Plan agent creates Task agents. It may perform a small Task directly. D
 ## Plan
 
 Agree on goal, scope, outputs, acceptance criteria, constraints, references, and Task order. Save only after showing the user a final preview. Do not execute before approval. After all Task results have been accepted, request the user's final confirmation before marking the Plan complete.
+Resolve material ambiguity before execution; if clarification changes an approved Plan, revise and obtain approval again.
+
+## Code conventions
+
+For code writing, modification, or review Tasks, read and follow the user's rules in `guidance/CODE_CONVENTIONS.md`; do not invent project-wide code conventions when it is empty.
 
 ## Task
 
@@ -32,7 +37,7 @@ Restore only from a clean working tree and only by a recorded checkpoint ID. A r
 
 ## Project flow projection
 
-`PROJECT_FLOW.md` is a read-only projection of Plans, checkpoints, material Audits, and the current runtime position. It intentionally excludes Task and Evidence detail. The AIPF CLI refreshes only the generated region between its markers; preserve content outside the markers and never edit the generated region directly. Use normal CLI state-changing commands or `status` to refresh the projection.
+`.aipf/PROJECT_FLOW.md` is a read-only projection of Plans, checkpoints, material Audits, and the current runtime position. It intentionally excludes Task and Evidence detail. The AIPF CLI refreshes only the generated region between its markers; preserve content outside the markers and never edit the generated region directly. Use normal CLI state-changing commands or `status` to refresh the projection.
 
 ## Reference source
 
