@@ -7,13 +7,13 @@ Replace the Python CLI framework with the approved clone-ready Markdown structur
 ## Git State
 
 - Branch: `change/markdown-redesign`
-- HEAD: `51ea5b2` (`refactor: replace CLI with markdown project template`)
+- Reviewed branch HEAD: `38d39e2` (`docs: record markdown redesign review state`)
 - Base: `0729a721227e815954a11056a527b90cffbdfa1b`
-- Worktree after implementation commit: clean before this Handoff update
+- Completion: user confirmed; archive and Git publication in progress
 
 ## Current State
 
-The clone-ready Markdown structure is committed. Tracked legacy CLI and example files are removed. Attacker and defender reviews are complete; accepted findings are applied. Only this Handoff update and Change-branch push remain.
+The clone-ready Markdown structure is committed and reviewed. The user gave final completion confirmation. This Handoff moves with the Change into the archive.
 
 ## Verified Results
 
@@ -31,16 +31,15 @@ The clone-ready Markdown structure is committed. Tracked legacy CLI and example 
 
 ## Open Issues
 
-- Commit this Handoff update and push the Change branch.
-- User final completion confirmation remains.
+- Archive commit, main merge, tag, push, branch cleanup, and Telegram notification remain.
 
 ## Next Action
 
-Commit this Handoff update and push `change/markdown-redesign`.
+Archive this Change and complete the publication sequence in `instructions/GIT.md`.
 
 ## Relevant Files
 
-- `change/markdown-redesign/CHANGE.md`
+- `archive/2026-09-27-markdown-redesign/CHANGE.md`
 - `instructions/`
 - `project/`
 - `MEMORY_MAP.md`
