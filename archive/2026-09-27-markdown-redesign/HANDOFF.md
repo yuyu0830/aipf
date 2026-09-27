@@ -13,7 +13,7 @@ Replace the Python CLI framework with the approved clone-ready Markdown structur
 
 ## Current State
 
-The clone-ready Markdown structure is committed and reviewed. The user gave final completion confirmation. This Handoff moves with the Change into the archive.
+The clone-ready Markdown structure is committed, reviewed, merged to `main`, tagged, and published. The Change branch was removed after merge.
 
 ## Verified Results
 
@@ -24,6 +24,9 @@ The clone-ready Markdown structure is committed and reviewed. The user gave fina
 - Relative Markdown link scan → exit 0, no broken links.
 - Secret-value pattern scan → exit 0, no stored credential values.
 - Attacker and defender reviews completed; main-agent decisions are in `CHANGE.md`.
+- Merge: `d7a0f74` on `main`.
+- Tag: `change/2026-09-27-markdown-redesign`.
+- Telegram completion notice sent once: message ID `41`.
 
 ## Failed Attempts
 
@@ -31,11 +34,11 @@ The clone-ready Markdown structure is committed and reviewed. The user gave fina
 
 ## Open Issues
 
-- Archive commit, main merge, tag, push, branch cleanup, and Telegram notification remain.
+- None.
 
 ## Next Action
 
-Archive this Change and complete the publication sequence in `instructions/GIT.md`.
+Write `project/PROJECT_SPEC.md` for the next project.
 
 ## Relevant Files
 
