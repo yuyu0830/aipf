@@ -12,6 +12,8 @@ Git history is the durable source for branches, completion points, and recovery.
 
 ## Before every Git write
 
+Confirm origin, if configured, belongs to the user's project. Follow README's clone setup before publishing; never push user-project work to AIPF's distribution repository. If origin is absent, local work may proceed, but publication requires the user's own remote.
+
 Check the current branch, HEAD, upstream, working tree, staged files, remote divergence, and file ownership. Stop for dirty or staged files not owned by the Change. Fetch before comparing remote refs when network access is available; report when it is unavailable.
 
 ## Publication sequence
