@@ -2,6 +2,12 @@
 
 This file defines code form, not implementation scope. Scope and behavior come from the approved `CHANGE.md`.
 
+## Implementation size
+
+Start with the minimum behavior requested for AIPF's solo local use. Prefer a direct command sequence over a framework, validation layer, or configurable modes. Use the underlying tool's normal failure result. Add custom error handling only for a concrete requested case.
+
+Do not create integrity validation, hypothetical failure detection, race handling, or tests for those guards by default. Verify the changed normal behavior directly; introduce automated tests when an actual need justifies them.
+
 ## Function structure
 
 Before creating, removing, splitting, merging, renaming, or changing the inputs or outputs of functions, present prototypes containing:

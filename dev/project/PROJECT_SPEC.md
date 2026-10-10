@@ -17,7 +17,7 @@ AIPF — AI Project Framework
 
 - `template/`: 사용자 프로젝트에 제공할 독립된 Markdown 틀
 - 루트 라우팅과 `dev/`: AIPF 자체 목표·개발 규칙·상태·기록·자료
-- `template/`만 `release` 루트로 내보내는 배포 도구와 검증
+- `template/`만 `release` 루트로 내보내는 최소 배포 도구
 
 ### 완료 기준
 
@@ -32,7 +32,7 @@ AIPF — AI Project Framework
 
 ## 2. 참고 자료
 
-- 현재 사용자 지시: AIPF 개발과 적용 자료 분리, 개발용 README 제거, template-only release 배포
+- 현재 사용자 지시: AIPF 개발과 적용 자료 분리, 개발용 README 제거, template-only release 배포, 혼자 로컬에서 사용하는 최소 구현
 - `dev/archive/2026-09-27-markdown-redesign/`: 현재 Markdown 구조의 의도와 검증 기록
 - Git의 `0729a72` 이전 `dev/PROJECT_DIRECTION.md`, `dev/REQUESTS.md`: 과거 개발 자료. 현재 요구사항으로 자동 재도입하지 않는다.
 - 개발 참고 자료는 `dev/inputs/{docs,codes,data,media}/`, 재사용 검증 정보는 `dev/knowledge/`에 관리한다.
@@ -55,6 +55,11 @@ Markdown 중심 개편은 설치 부담을 없앴지만 개발 자료와 배포 
 
 ## 5. 구현 명세
 
+### 최소 구현 원칙
+
+AIPF 자체는 혼자 로컬에서 사용하는 프로젝트다. 사용자 요구에 필요한 최소 동작부터 구현하고 실제 사용에서 필요가 드러날 때만 늘린다. 무결성 검사, 예상만으로 추가하는 오류 감지·동시성·일반 복구 코드와 이를 위한 대규모 테스트는 기본 범위에 넣지 않는다. Git 등 도구의 기본 실패 처리를 사용하고 바꾼 정상 동작을 직접 확인한다. 이 원칙을 AIPF로 수행하는 사용자 프로젝트의 제약으로 강제하지 않는다.
+
+
 - 목표와 현재 상태, 활성 Change와 Handoff, 완료 archive, 자료와 검증 정보를 파일로 유지한다.
 - 구현은 사용자의 명시적인 시작 지시 후 수행하며 관련 없는 개선은 포함하지 않는다.
 - Git 이력과 완료 태그로 분기·복귀하며 기존 이력을 되돌리거나 강제 push하지 않는다.
@@ -65,17 +70,17 @@ Markdown 중심 개편은 설치 부담을 없앴지만 개발 자료와 배포 
 
 ## 6. 검증 방식
 
-- 개발·사용 지침의 경로와 문서 링크, 초기 사용자 상태, ignored Flow 검사
+- 바꾼 문서와 실제 파일 위치, 개발/사용 역할을 확인한다.
 - 독립된 공격·방어 검토와 주 에이전트의 근거별 판정
-- 격리 Git 저장소에서 배포 tree 일치·이력 보존·재실행·실패 경계 검사
+- 임시 로컬 Git 저장소에서 template 배포와 기존 release 연결이라는 정상 동작을 직접 확인한다. 상시 무결성 검증 도구나 과한 오류 시나리오 테스트는 두지 않는다.
 - 사용자가 최종 완료를 확인한 뒤 main 병합·태그·게시 및 release 배포
 
 ## 7. 진행 계획
 
 1. Markdown 중심 틀 전환 — 완료. 기록은 `dev/archive/2026-09-27-markdown-redesign/`.
-2. AIPF 개발과 사용자 템플릿 분리, 문서 정리, template-only release 배포 — 현재 Change.
+2. AIPF 개발과 사용자 템플릿 분리, 문서 정리, 최소 template-only release 배포 — 현재 Change.
 3. 이후 개선은 실제 사용에서 드러난 필요를 사용자와 합의해 별도 Change로 정한다. 추가 기능은 아직 확정하지 않는다.
 
 ## 8. 추가 메모
 
-이 명세는 현재 Markdown 구조와 이번 사용자 지시를 기준으로 새로 작성했다. 종전 루트의 빈 명세는 사용자용 `template/project/PROJECT_SPEC.md`로 보존했다.
+이 명세는 현재 Markdown 구조와 사용자 지시를 기준으로 작성했으며, 최소 구현 방향을 추가 반영했다. 이전 명세는 `dev/project/old/PROJECT_SPEC_001.md`에 보존했다. 종전 루트의 빈 명세는 사용자용 `template/project/PROJECT_SPEC.md`로 보존했다.

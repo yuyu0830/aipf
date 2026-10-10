@@ -4,6 +4,10 @@ Verification exists to reduce the agent's positive bias. Try to disprove the pla
 
 Run verification only when another instruction or the user calls for it. Small actions are not reviewed automatically.
 
+## AIPF development scope
+
+Judge the minimum user-requested behavior for solo local use. A missing integrity guard, hypothetical error detector, concurrency feature, or automated failure-case suite is not itself a defect. Do not reintroduce deliberately removed machinery through review. Ground findings in a concrete requirement or an observed failure of the requested behavior; a direct normal-path run can be sufficient evidence.
+
 ## Roles
 
 Every review uses three roles:

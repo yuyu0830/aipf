@@ -13,7 +13,7 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 - 루트 개발용 라우팅과 메모리 맵, `dev/` 개발 명세·상태·지침·기록·자료 공간
 - 독립된 `template/`의 사용 지침·빈 명세·초기 상태·버전별 소스 공간
 - `template/README.md`의 release clone 사용법과 개발 영역 구분
-- `dev/scripts/update_release_branch.sh`, 배포 규칙과 격리된 Git 저장소 테스트
+- `dev/scripts/update_release_branch.sh`와 배포 규칙; 개인 로컬 사용에 필요한 최소 배포 동작만 구현
 - 상대 링크, ignored Flow, 기존 기록 보존, 사용자 의도에 대한 독립 검토
 
 ## 제외 범위
@@ -44,7 +44,7 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 - 루트에는 개발용 라우팅 두 문서와 Git 설정만 남기며 프로젝트 관리 폴더는 남기지 않는다.
 - 개발 지침은 template 내부를 수정할 때도 적용한다. template의 지침은 배포할 문서이며 이 저장소에서 현재 작업을 지휘하지 않는다.
 - archive 이동 후 상대 링크를 검사한다. 과거 시점의 경로·명령·결과를 기록한 본문은 당시 사실로 보존한다.
-- 배포 tree ID는 source commit의 `template` tree ID와 정확히 같아야 한다. dotfile을 포함하며 개발 기록은 포함하지 않는다.
+- 배포는 main에 커밋된 template 내용만 루트로 배치한다. dotfile도 포함하고 개발 폴더는 내보내지 않는다.
 
 ## Plan
 
@@ -52,26 +52,29 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 |---|---|---|---|---|---|
 | 1 | 문서·폴더 | 기존 지침과 빈 템플릿을 분리하고 개발 기록 보존 | 루트 라우팅, `dev/`, `template/`, 루트 README 제거 | 과거 archive 본문 재작성 | 필수 경로·범위·링크·템플릿 초기 상태 확인 |
 | 2 | 개발 명세·상태 | 기존 방향과 이번 사용자 지시를 근거로 AIPF 목표 및 진행 위치 명시 | `dev/project/PROJECT_SPEC.md`, `PROJECT_STATUS.md` | 과거 CLI 동작의 요구사항 재도입 | 개발/사용 목표 및 다음 행동 대조 |
-| 3 | 배포 | main의 커밋된 template 트리를 release로 내보내는 스크립트와 규칙 작성 | 배포 스크립트, `dev/instructions/RELEASE.md` | 자동 강제 push·실제 배포 | Bash 문법과 격리 Git 시나리오 검사 |
+| 3 | 배포 | main의 커밋된 template 내용을 release로 내보내는 최소 스크립트와 규칙 작성 | 배포 스크립트, `dev/instructions/RELEASE.md` | 방어 코드·자동 fetch/push·실제 배포 | Bash 문법과 정상 배포 직접 확인 |
 | 4 | 검증·인계 | 공격/방어 검토, 변경 커밋·브랜치 push, 인계 | 검증 기록, HANDOFF | 최종 확인 이전 완료 처리 | 독립 검토와 구조 검사 통과 |
 
-배포 스크립트는 쉘 함수 없이 작성한다. 입력은 `--check` 또는 `--push`(생략 시 로컬 갱신), 출력은 검사 결과 또는 release commit이다.
+### 사용자 추가 지시 반영
 
-- clean main만 허용한다. origin이 있으면 기본/--push 모드는 fetch 후 main==origin/main을 확인하고, --check는 ls-remote로 참조만 읽으며 어떤 로컬 파일·ref·객체도 쓰지 않는다. origin이 없으면 로컬 검사/생성만 허용한다.
-- 기존 release가 없으면 template만 담은 root commit을 만든다. 있으면 최신 release를 부모로 보존한다. 로컬/원격 release가 서로 갈라졌으면 중단한다.
-- template tree가 같으면 새 commit을 만들지 않는다. 로컬 ref 갱신은 기존 값 조건부 update-ref로 동시 변경을 거부한다.
-- --push는 main 게시 확인 후 일반 fast-forward push만 사용한다. 원격 race로 실패하면 로컬 commit을 유지하고 재확인 후 재시도한다. 충돌은 사용자 판단 없이 해결하지 않는다.
-- 다른 worktree에서 release를 사용 중이면 중단한다. 작업 중 main 전환이나 작업 파일 재작성은 하지 않는다.
-- 루트 AGENTS.md와 dev/instructions/GIT.md에서 RELEASE.md를 연결한다. Change 검토 → 최종 확인 → archive/main 병합·태그·push → release 생성·push → Change 브랜치 정리 순서를 문서화한다.
+AIPF는 혼자 로컬에서 사용하는 프로젝트다. 무결성 검사·과한 오류 감지 코드를 제거하고 사용자 요구의 최소 동작부터 구현한다. 실제 필요가 확인될 때만 늘린다. 이 지시는 현재 Change 수정 실행을 포함하며 별도의 재승인을 요구하지 않는다.
+
+| 대상 | 작업 | 결과물 | 제외 | 확인 |
+|---|---|---|---|---|
+| 개발 원칙 | 최소 구현·실제 필요에 따른 확장을 명시 | 루트 AGENTS, dev 공통/코드/검토 지침, 개발 명세 | 사용자 프로젝트 전체에 개인 로컬 제약 강제 | 개발용 문서만 수정됨을 확인 |
+| 배포 도구 | 옵션·무결성·파일 형식·원격 동기화·동시성 검사 제거 | main:template으로 로컬 release 커밋을 만드는 쉘 스크립트 | 검사 모드, 자동 fetch/push, 실패 복구 계층 | 문법과 정상 배포 동작 직접 확인 |
+| 테스트·문서 | 방어 시나리오 테스트 제거, 배포 절차와 인계 수정 | 단순한 RELEASE 지침과 현황 | 새 자동 검증 도구·테스트 체계 | 문서/스크립트 명령 일치 및 직접 실행 확인 |
+
+스크립트는 함수와 인자를 사용하지 않는다. 입력은 커밋된 main의 template과 기존 로컬 release다. 출력은 template을 루트로 하는 새 로컬 release 커밋이다. 기존 release가 있으면 부모로 이어 붙인다. 원격 게시는 에이전트가 별도 `git push origin release`로 수행한다. Git 명령이 실패하면 셸 기본 실패 처리로 중단한다.
+
+이전 Plan의 `--check`/`--push`, tree/manifest/hash 대조, 경로·파일 형식·동시성·분기 차단, 대규모 자동 테스트 요구는 이번 사용자 지시로 철회한다. 개발/적용 분리와 사용자 최종 완료 확인 이후 main 병합·배포라는 기존 범위는 유지한다.
 
 ## 검증 방법
 
-- Plan 공격/방어 검토 후 근거별 주 에이전트 판정
-- 필수 구조, 상대 Markdown 링크, 과거 경로, 빈 사용자 상태, Git 제외 규칙 확인
+- 변경하는 배포 동작과 개발/사용 경계만 독립 검토한다. 제거한 방어 기능의 부재를 결함으로 다루지 않는다.
 - `bash -n dev/scripts/update_release_branch.sh`
-- 격리 저장소에서 최초 배포, 기존 이력 보존, 재실행, 변경 반영, 잘못된 브랜치·dirty 상태·원격 분기·release checkout 거부, push 검증
-- release tree ID와 `source:template` tree ID 일치 및 manifest/content hashes 일치, dotfile 포함, dev 미포함, README 단일 위치 검증
-- Git diff 검사와 Change 완료 준비 검토
+- 임시 로컬 Git 저장소에서 template 배치와 이전 release 이력 연결이라는 정상 동작만 직접 실행해 확인한다.
+- Git diff와 관련 문서를 확인한다. 지속적인 테스트 스크립트나 무결성 검증 코드는 추가하지 않는다.
 
 ## 진행 상태
 
@@ -81,6 +84,8 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 - 승인 근거: 사용자가 제안한 분리를 승인하고 문서 수정·README 정리·release 배포 방식 구현을 명시적으로 지시했다.
 
 ## 검증 결과
+
+아래 기록은 `ca5c8c5` 시점의 이전 구현에 대한 검토다. 방어 코드와 테스트를 유지하라는 과거 판정은 최신 사용자 지시로 철회되었으며, 단순화한 현재 구현의 완료 근거로 사용하지 않는다.
 
 - 작업 전 Git: clean main, origin/main과 동일. 기존 release와 origin/release 동일.
 - Plan 검토: `plan_attack`, `plan_defend` 독립 검토 완료. 수정 Plan 판정 `pass`.
@@ -116,9 +121,19 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 - 최종 검사: Bash 문법, 전체 배포 회귀·구조 검사, staged diff 공백 검사, 단일 README와 tracked Flow 없음, 이전 archive byte 보존 모두 통과.
 - 미해결 검토 finding 없음. main 병합·태그·release 게시를 위한 사용자 최종 완료 확인은 아직 받지 않았다.
 
+### 최소 구현으로 수정한 현재 결과
+
+- 배포 스크립트: 150줄 → 17줄. main의 커밋된 template 내용으로 로컬 release 커밋을 만들고 기존 release를 부모로 연결한다.
+- 삭제: `--check`/`--push` 옵션 처리, 자동 fetch/push, 무결성·파일 형식·예약 경로·원격 동기화·동시 변경 검사 및 이를 위한 227줄 테스트 스크립트.
+- 개발 규칙: 루트 AGENTS와 dev 공통·코드·검토 지침에 최소 구현과 실제 필요에 따른 확장을 명시했다. 개발 명세의 이전본은 `dev/project/old/PROJECT_SPEC_001.md`에 보존했다.
+- `template/`는 이번 단순화에서 변경하지 않았다. 개인 로컬 개발 제약을 사용자 프로젝트 전체에 강제하지 않는다.
+- `bash -n dev/scripts/update_release_branch.sh`: 통과.
+- 임시 로컬 저장소 직접 실행: 처음 release에 template의 README와 .gitignore만 루트로 배치되고 개발 파일은 포함되지 않음. 이후 제품 변경을 배포하면 이전 release가 부모로 연결됨. 임시 저장소는 정리했다.
+- `git diff --check`: 통과. 새 상시 검사 코드나 테스트 스크립트는 추가하지 않았다.
+- 수정 Plan·현재 코드 검토: `simplify_plan_attack`, `simplify_defend` 모두 `pass`, finding 없음. 방어 검토도 정상 배포를 직접 확인했으며 제거한 방어 기능은 결함으로 취급하지 않았다. 주 에이전트는 현재 코드·문서·직접 실행 결과를 대조해 `pass`로 판정했다.
+
 ## 최종 결과
 
-- 구현과 독립 검토 완료. 구현 commit: `ca5c8c5c36b55edce87377029151022c6ac38ff8`.
-- 검증한 product tree: `7b0289c41b6729bdee01bb3d1fabadee5f2da4fa` (`ca5c8c5:template`).
-- 검토된 Change 브랜치를 게시하고 최종 완료 확인을 받는다.
+- 개발/적용 구조 분리의 이전 구현 commit: `ca5c8c5`, 기록 commit: `f11efd9`.
+- 최신 사용자 지시에 따라 배포 코드·문서와 개발 원칙의 단순화 및 정상 동작 확인·독립 검토를 완료했다.
 - 최종 완료 확인 전 main 병합과 실제 release 배포는 수행하지 않는다.

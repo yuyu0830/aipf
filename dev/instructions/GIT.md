@@ -24,7 +24,7 @@ Check the current branch, HEAD, upstream, working tree, staged files, remote div
 4. Update status and archive the Change, then commit.
 5. Switch to an up-to-date clean `main` and merge with `--no-ff`.
 6. Recheck the merged state, create annotated tag `change/YYYY-MM-DD-<name>`, and push `main` plus the tag.
-7. Generate and publish `release` from the accepted main's committed `template/` tree under `dev/instructions/RELEASE.md`. Verify exact tree equality and remote publication before proceeding.
+7. Generate and publish `release` from the accepted main's committed `template/` tree under `dev/instructions/RELEASE.md`. Use the local generation script and a separate normal Git push.
 8. Delete the merged Change branch locally and remotely. Keep unmerged alternatives.
 
 Retry a failed step only after inspecting current local and remote state. All steps must be safe to repeat without duplicate archives, tags, or notifications.

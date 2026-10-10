@@ -8,6 +8,7 @@
 
 - Markdown 중심 틀 개편은 완료했다.
 - AIPF 자체 개발 자료와 사용자용 템플릿을 분리하는 Change를 진행 중이다.
+- 혼자 로컬에서 사용하는 AIPF에 맞춰 배포 코드와 개발 원칙을 최소 구현으로 줄였다.
 - 사용자 프로젝트의 초기 상태는 `template/project/PROJECT_STATUS.md`에 별도로 둔다.
 
 ## 완료 내역
@@ -19,18 +20,18 @@
 ## 진행 중
 
 - 현재 Change: [AIPF 개발과 적용 템플릿 분리](../change/dev-template-separation/CHANGE.md)
-- 현재 위치: 구현 커밋·격리 검증·독립 Change 검토 완료, 최종 완료 확인 대기
+- 현재 위치: 최소 구현 수정·정상 동작 확인·독립 검토 완료, 최종 완료 확인 대기
 - 문제: 기존 release는 아직 이전 Python CLI 배포본이며 이번 Change 완료 후 갱신한다.
 
 ## 앞으로 할 일
 
-- 검증된 Change 브랜치를 커밋·push하고 최종 결과를 확인받는다.
+- 수정한 Change의 최종 결과를 확인받는다.
 - 사용자 최종 완료 확인 후 main 병합·태그·게시 및 template-only release 배포를 수행한다.
 
 ## 다음 행동
 
 - 행동: 사용자 최종 완료 확인을 받는다.
-- 이유: 검토된 변경을 main과 release에 반영하기 전 완료 경계를 확인한다.
+- 이유: 단순화한 결과를 main과 release에 반영한다.
 - 변경: 확인 후 개발 상태·archive·Git refs 및 release
 
 ## 알려진 문제
@@ -41,4 +42,3 @@
 
 - `template/`: 사용자에게 배포할 틀
 - `dev/scripts/`: 개발·배포 도구
-- `dev/tests/`: 배포 검증

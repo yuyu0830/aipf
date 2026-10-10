@@ -2,53 +2,47 @@
 
 ## Objective
 
-Separate AIPF development in `dev/` from the shipped product in `template/`, remove the development README, and implement/document template-only release publication.
+Keep AIPF development under dev and the product under template, with only the product README. Per the latest user instruction, keep AIPF's solo local implementation minimal and remove integrity/overly defensive code.
 
 ## Git State
 
 - Branch: `change/dev-template-separation`.
-- Base: `9511de694104bd8cc31eaf9815d90828d7651a54`.
-- Verified implementation HEAD: `ca5c8c5c36b55edce87377029151022c6ac38ff8`. This Handoff/Change record is committed afterward; obtain the current documentation HEAD and upstream from Git when resuming.
-- Product tree: `7b0289c41b6729bdee01bb3d1fabadee5f2da4fa` (`ca5c8c5:template`).
-- Last fetch: origin/main matched main; origin/release matched local release (`d7dd6d5`).
-- After the implementation commit the working tree was clean. Only this Handoff and Change result are updated in the follow-up documentation commit. All work belongs to this Change; no unrelated dirty or staged files were present at start.
-- Change publication must be verified against origin at resume; do not infer upstream state solely from this Handoff.
-- No main merge, completion tag, or actual release update has been performed.
+- Original Change base: `9511de694104bd8cc31eaf9815d90828d7651a54`.
+- Last published HEAD before this simplification: `f11efd91ffad156a0e307b72c68701c9761e1fd4`.
+- Latest fetch confirmed origin/main and origin/release unchanged from the previous session. The Change branch was clean and matched its upstream before these edits.
+- This commit contains only owned simplification changes: development routing/rules/Spec/Status, current Change/Handoff, release script, deletion of test_release.sh, and the previous Spec copy in dev/project/old/PROJECT_SPEC_001.md.
+- Check current HEAD/upstream with Git at resume. Main, release, and completion tags have not been updated by this Change.
 
 ## Current State
 
-Plan and Change attack/defense reviews completed. The main agent verified and accepted the revised result as pass. The user explicitly approved the proposed split and requested implementation; final completion confirmation has not been given. Development/product directories, routing, Spec/Status separation, product-only README, publication instructions, release script, and isolated tests are implemented and committed. This record accompanies publication of the reviewed Change branch; the only remaining acceptance step is final user confirmation before completion.
+The original directory separation is retained. The 150-line release script is reduced to 17 lines: read committed main:template, create a release commit with the existing local release as parent if present, and update the local ref. Push is a separate normal Git command. The 227-line defensive test script is removed. The product template is unchanged by this simplification.
+
+Root and dev instructions now require minimum implementation for AIPF's solo local use, direct tool failures and proportional checks, adding guards/tests only for an actual need. Product projects keep their independent requirements. The previous development Spec was preserved before updating it.
 
 ## Verified Results
 
-- `bash -n dev/scripts/update_release_branch.sh dev/tests/test_release.sh`: passed.
-- `bash dev/tests/test_release.sh`: temporary repositories verified first publication, exact tree/manifest equality, dotfiles, no development data, legacy history preservation, no-op runs, wrong branch/detached/dirty/worktree rejection, unpublished-main rejection, push/retry, remote race and divergence.
-- Structural Python check: canonical paths, only template README, relative Markdown links, byte-identical moved archive, ignored dev/template Flows, blank product Spec and lifecycle spaces passed.
-- `git diff --check`: passed before staging.
-- `git diff --cached --check`: passed after staging; only `template/README.md` is tracked as README, and no Flow is tracked.
-- Missing product file and concurrent local release-ref updates: added to the suite and passed. The first local-ref race fixture did not change the product tree, so it correctly triggered no update; the fixture was corrected to create a new product snapshot before injecting the competing write.
-- Final review corrections: reserved dev/nested-template paths, extra README, and required-file directory/symlink replacements are rejected; all added regression cases passed.
-- Final attack/defense decisions are recorded in CHANGE.md. No unresolved findings remain.
+- `bash -n dev/scripts/update_release_branch.sh`: passed.
+- A direct normal-path run in a temporary local Git repository: first release contained root .gitignore and README without the development file; next product update retained the earlier release as parent. Temporary repository removed.
+- `git diff --check`: passed.
+- `git diff --name-only -- template`: no output; product content unchanged this turn.
+- Old --check/--push/test_release.sh references removed from current development routing and release instructions. Historical verification remains in Git and is marked as superseded in CHANGE.md.
+- Focused revised Plan and final source review: simplify_plan_attack and simplify_defend both passed with no findings. The main agent checked the source, documents and direct execution evidence and accepted pass; results are recorded in CHANGE.md.
 
 ## Failed Attempts
 
-- Initial sandboxed `git fetch origin` could not write `.git/FETCH_HEAD`; escalated fetch succeeded. Git metadata writes require the permitted escalation.
-- First combined delete/add apply_patch rejected duplicate targets before any edit; files were then written without that invalid patch form.
+Removing the now-unused dev/tests directory failed because it contains ignored historical __pycache__ files. The owned tracked test script was deleted successfully; unrelated ignored cache files were left untouched. Do not retry broad directory removal.
 
 ## Open Issues
 
-- Existing release still contains the old Python CLI. Actual release publication is intentionally after the user's final completion confirmation and main merge/push.
-- Final user completion confirmation is pending. Verify that the documentation HEAD is published before proceeding with completion.
+Final user completion confirmation remains pending. The real release still contains the old CLI and will change only after completion and main publication.
 
 ## Next Action
 
-Verify branch publication and obtain the user's final completion confirmation. After confirmation follow dev/instructions/END_CHANGE.md, GIT.md, and RELEASE.md to archive, merge/tag/push main, generate/push release, clean up the merged branch, and notify.
+Publish the reviewed simplification commit with this Handoff and report it. Final completion confirmation remains pending. After confirmation follow dev/instructions/END_CHANGE.md and RELEASE.md for archive/main publication, local release generation, separate git push origin release, and cleanup.
 
 ## Relevant Files
 
-- `AGENTS.md`, `MEMORY_MAP.md`
+- `AGENTS.md`, `dev/instructions/COMMON.md`, `dev/instructions/CODE_GENERATION.md`, `dev/instructions/VERIFICATION.md`
 - `dev/project/PROJECT_SPEC.md`, `dev/project/PROJECT_STATUS.md`
 - `dev/change/dev-template-separation/CHANGE.md`
-- `dev/instructions/GIT.md`, `dev/instructions/RELEASE.md`, `dev/instructions/END_CHANGE.md`
-- `dev/scripts/update_release_branch.sh`, `dev/tests/test_release.sh`
-- `template/AGENTS.md`, `template/MEMORY_MAP.md`, `template/README.md`, `template/project/`
+- `dev/scripts/update_release_branch.sh`, `dev/instructions/RELEASE.md`, `dev/instructions/GIT.md`

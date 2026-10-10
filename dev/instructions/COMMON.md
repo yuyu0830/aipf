@@ -17,6 +17,14 @@ Apply these rules to every action.
 - Begin implementation only after an explicit start instruction.
 - Preserve user changes and never overwrite work with unclear ownership.
 
+## Minimum implementation
+
+AIPF is developed by one person for local use. Implement the requested behavior with the smallest practical change. Add features, guards, or tests only when the user requires them or actual use establishes the need.
+
+Do not preemptively add integrity checks, duplicate tool error handling, concurrency support, generalized recovery, or a failure-case test framework. Use a direct normal-path check for small tools. Preserve existing work and Git history through ordinary Git operations.
+
+This is an AIPF development rule, not a blanket restriction on projects using `template/`.
+
 ## Explanation
 
 Explain motivation and derivation before procedure:

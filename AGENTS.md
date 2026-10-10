@@ -10,6 +10,15 @@ This checkout develops AIPF itself. Read `MEMORY_MAP.md`, `dev/instructions/COMM
 - Never put AIPF development records or reference materials in `template/`.
 - There is no development README. The only README is `template/README.md`, for product users.
 
+## Minimum implementation
+
+AIPF itself is a solo, local project. Implement only the smallest behavior the user requested. Add capabilities when actual use shows a need.
+
+- Do not add integrity validators, speculative error guards, concurrency machinery, or automated failure-case test suites by default.
+- Use Git/tool failures directly; avoid wrapping them in a second detection/recovery system.
+- Check the changed behavior with a direct run and keep verification proportional to the change.
+- This development constraint does not dictate the needs of projects using the product template.
+
 ## Start of every session
 
 1. Read `dev/project/PROJECT_SPEC.md` and `dev/project/PROJECT_STATUS.md`.
@@ -49,8 +58,8 @@ Always apply `dev/instructions/COMMON.md`, then add only what the request needs.
 
 - Develop on `change/<name>` branches from `main`. Keep development records in `dev/`.
 - Commit and push verified Change work, then wait for the user's final completion confirmation before archiving, merging, or publishing.
-- `release` is generated, never edited directly. Its root tree must exactly equal the committed `template/` tree of the accepted `main` revision.
-- After main publication, follow `dev/instructions/RELEASE.md` and run `bash dev/scripts/update_release_branch.sh --push` from clean, synchronized `main`.
+- `release` is generated, never edited directly. It contains the committed `template/` content of the accepted `main` revision at its root.
+- After main publication, follow `dev/instructions/RELEASE.md`: generate local release with `bash dev/scripts/update_release_branch.sh`, then publish with `git push origin release`.
 - Preserve existing release history. Never force push or publish development files. The old CLI release is replaced in the next commit, not rewritten.
 
 ## Execution boundary

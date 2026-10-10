@@ -31,7 +31,7 @@ Read this map before creating or moving files. Paths are relative to the develop
 | `dev/inputs/` | References for AIPF development | Write by explicit request or approved Change |
 | `dev/knowledge/` | Reusable verified development information | Write through data collection rules |
 | `dev/scripts/` | Development and publication tools | Write through approved Change |
-| `dev/tests/` | Tests for AIPF and publication | Create/write when approved Change needs tests |
+| `dev/tests/` (optional) | Tests justified by an actual development need | Do not create a standing validation suite by default |
 | `template/` | Independent ready-to-clone product tree | Edit through approved AIPF Change |
 | `template/project/PROJECT_SPEC.md` | Blank user-project Spec | Keep as template; never insert AIPF goals |
 | `template/project/PROJECT_STATUS.md` | Initial user-project Status | No AIPF completion records |
