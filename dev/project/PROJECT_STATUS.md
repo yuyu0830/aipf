@@ -19,7 +19,7 @@
 ## 진행 중
 
 - 현재 Change: [AIPF 개발과 적용 템플릿 분리](../change/dev-template-separation/CHANGE.md)
-- 현재 위치: 구현·격리 검증·독립 Change 검토 통과, 최종 완료 확인 준비
+- 현재 위치: 구현 커밋·격리 검증·독립 Change 검토 완료, 최종 완료 확인 대기
 - 문제: 기존 release는 아직 이전 Python CLI 배포본이며 이번 Change 완료 후 갱신한다.
 
 ## 앞으로 할 일

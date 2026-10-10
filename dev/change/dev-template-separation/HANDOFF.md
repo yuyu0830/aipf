@@ -7,14 +7,17 @@ Separate AIPF development in `dev/` from the shipped product in `template/`, rem
 ## Git State
 
 - Branch: `change/dev-template-separation`.
-- Base and current HEAD before implementation commit: `9511de694104bd8cc31eaf9815d90828d7651a54`.
+- Base: `9511de694104bd8cc31eaf9815d90828d7651a54`.
+- Verified implementation HEAD: `ca5c8c5c36b55edce87377029151022c6ac38ff8`. This Handoff/Change record is committed afterward; obtain the current documentation HEAD and upstream from Git when resuming.
+- Product tree: `7b0289c41b6729bdee01bb3d1fabadee5f2da4fa` (`ca5c8c5:template`).
 - Last fetch: origin/main matched main; origin/release matched local release (`d7dd6d5`).
-- Changes: root routing and ignore rules modified; previous root management folders moved into dev/template; README moved to template; dev/template are new until staging. All changes belong to this Change; no unrelated dirty or staged files were present at start.
+- After the implementation commit the working tree was clean. Only this Handoff and Change result are updated in the follow-up documentation commit. All work belongs to this Change; no unrelated dirty or staged files were present at start.
+- Change publication must be verified against origin at resume; do not infer upstream state solely from this Handoff.
 - No main merge, completion tag, or actual release update has been performed.
 
 ## Current State
 
-Plan and Change attack/defense reviews completed. The main agent verified and accepted the revised result as pass. The user explicitly approved the proposed split and requested implementation; final completion confirmation has not been given. Development/product directories, routing, Spec/Status separation, product-only README, publication instructions, release script, and isolated tests are implemented. Commit and Change branch push remain before the final report.
+Plan and Change attack/defense reviews completed. The main agent verified and accepted the revised result as pass. The user explicitly approved the proposed split and requested implementation; final completion confirmation has not been given. Development/product directories, routing, Spec/Status separation, product-only README, publication instructions, release script, and isolated tests are implemented and committed. This record accompanies publication of the reviewed Change branch; the only remaining acceptance step is final user confirmation before completion.
 
 ## Verified Results
 
@@ -35,11 +38,11 @@ Plan and Change attack/defense reviews completed. The main agent verified and ac
 ## Open Issues
 
 - Existing release still contains the old Python CLI. Actual release publication is intentionally after the user's final completion confirmation and main merge/push.
-- Verified Change branch commit/push remain before the user's final completion check.
+- Final user completion confirmation is pending. Verify that the documentation HEAD is published before proceeding with completion.
 
 ## Next Action
 
-Commit and push the reviewed Change branch, then request the user's final completion confirmation. After confirmation follow dev/instructions/END_CHANGE.md, GIT.md, and RELEASE.md to archive, merge/tag/push main, generate/push release, clean up the merged branch, and notify.
+Verify branch publication and obtain the user's final completion confirmation. After confirmation follow dev/instructions/END_CHANGE.md, GIT.md, and RELEASE.md to archive, merge/tag/push main, generate/push release, clean up the merged branch, and notify.
 
 ## Relevant Files
 

@@ -118,5 +118,7 @@ AIPF 자체 개발과 AIPF로 다른 프로젝트를 개발하는 작업을 명�
 
 ## 최종 결과
 
-- 구현과 독립 검토 완료. 검증된 Change 브랜치를 커밋·push한 뒤 최종 완료 확인을 받는다.
+- 구현과 독립 검토 완료. 구현 commit: `ca5c8c5c36b55edce87377029151022c6ac38ff8`.
+- 검증한 product tree: `7b0289c41b6729bdee01bb3d1fabadee5f2da4fa` (`ca5c8c5:template`).
+- 검토된 Change 브랜치를 게시하고 최종 완료 확인을 받는다.
 - 최종 완료 확인 전 main 병합과 실제 release 배포는 수행하지 않는다.
