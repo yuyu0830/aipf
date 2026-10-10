@@ -9,5 +9,5 @@ build/
 .env.*
 !.env.example
 .obsidian/
-dev/project/PROJECT_FLOW.md
+dev/**/PROJECT_FLOW.md
 template/project/PROJECT_FLOW.md
